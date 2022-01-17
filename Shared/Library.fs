@@ -56,7 +56,23 @@ let operLexem =
              pstring "<="
              pstring ":=" ]
 
+let lexemParser =
+    sepEndBy1
+        (choice [ ifLexem
+                  thenLexem
+                  elseLexem
+                  hexLexem
+                  identifierLexem
+                  boolLexem
+                  emptyLexem
+                  operLexem ])
+        ws
 
+
+let parseLexems input =
+    match run lexemParser input with
+    | Success (res, _, _) -> Result.Ok res
+    | Failure (err, _, _) -> Result.Error err
 
 
 let hexExpression = hexLexem |>> Expression.HexNumber
