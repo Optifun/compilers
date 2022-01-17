@@ -20,35 +20,64 @@ type Expression =
     | Identifier of string
     | Boolean of Boolean
     | Binary of Expression * Expression * BinaryExprType
-    | Assertion of Expression * Expression
 
 type Statement =
     | IfThen of Expression * Statement
     | IfThenElse of Expression * Statement * Statement
     | Empty
+    | Assertion of Expression * Expression
 
 type Program = { Statements: List<Statement> }
+
+
 
 let ws = skipMany (skipChar ' ')
 let ws1 = skipMany1 (skipChar ' ')
 
-let hexLiteral = digit >>. manyChars hex |>> Expression.HexNumber .>> ws
+let emptyLexem = pstring "..."
 
-let identifier = many1Chars (letter <|> digit) |>> Expression.Identifier .>> ws
+let ifLexem = pstring "if" .>> ws1
 
-let boolLiteral =
-    pstring "true" <|> pstring "false"
+let thenLexem = pstring "then" .>> ws1
+
+let elseLexem = pstring "else" .>> ws1
+
+let hexLexem = pipe2 (ws >>. digit |>> Char.ToString) (manyChars hex .>> ws) (fun d rest -> d + rest)
+
+let identifierLexem = many1Chars (letter <|> digit) .>> ws
+
+let boolLexem: Parser<string, unit> = pstring "true" <|> pstring "false"
+
+let operLexem =
+    choice [ pstring "="
+             pstring ">"
+             pstring ">="
+             pstring "<"
+             pstring "<="
+             pstring ":=" ]
+
+
+
+
+let hexExpression = hexLexem |>> Expression.HexNumber
+
+let identifierExpression = identifierLexem |>> Expression.Identifier
+
+
+let boolExpression =
+    boolLexem
     |>> function
         | "true" -> true
         | "false" -> false
         | entry -> failwithf "%s should be of type Boolean" entry
     |>> Expression.Boolean
 
+
 let opp = OperatorPrecedenceParser<Expression, _, _>()
 
-opp.TermParser <- choice [ hexLiteral; identifier ]
-
-opp.AddOperator <| InfixOperator(":=", ws, 2, Associativity.Left, (fun x y -> Expression.Assertion(x, y)))
+opp.TermParser <-
+    choice [ hexExpression
+             identifierExpression ]
 
 opp.AddOperator <| InfixOperator("=", ws, 2, Associativity.None, (fun x y -> Expression.Binary(x, y, BinaryExprType.Equals)))
 
@@ -60,21 +89,35 @@ opp.AddOperator <| InfixOperator("<", ws, 5, Associativity.None, (fun x y -> Exp
 
 opp.AddOperator <| InfixOperator("<=", ws, 6, Associativity.None, (fun x y -> Expression.Binary(x, y, BinaryExprType.LesserThanOrEquals)))
 
-let expressionParser = opp.ExpressionParser
+//opp.AddOperator <| InfixOperator(":=", ws, 8, Associativity.Left, (fun x y -> Expression.Assertion(x, y)))
+
+
+let expressionParser =
+    choice [ opp.ExpressionParser
+             hexExpression
+             identifierExpression
+             boolExpression ]
 
 let stmValue, stmRef = createParserForwardedToRef<Statement, unit> ()
 
-let empty = ws >>. stringReturn "..." Statement.Empty .>> ws
+let ifParser = ((ifLexem |>> ignore)  >>. expressionParser .>> ws1)
 
-let ifParser = (skipString "if" >>. ws1 >>. expressionParser .>> ws1)
+let thenParser = ((thenLexem |>> ignore) >>. stmValue)
 
-let thenParser = (skipString "then" >>. ws1 >>. stmValue)
+let elseParser = ((elseLexem |>> ignore) >>. stmValue .>> ws)
 
-let elseParser = (skipString "else" >>. ws1 >>. stmValue .>> ws)
+let empty = ws >>. (emptyLexem |>> ignore) .>> ws >>% Statement.Empty
+
+let assertion =
+    pipe2 (ws >>. identifierExpression .>> ws .>> skipString ":=") (expressionParser .>> ws) (fun id ex -> Statement.Assertion(id, ex))
 
 let ifThen = pipe2 ifParser thenParser (fun ex st -> Statement.IfThen(ex, st))
 
 let ifThenElse = pipe3 ifParser thenParser elseParser (fun ex st1 st2 -> Statement.IfThenElse(ex, st1, st2))
 
-do stmRef := choice [ empty; ifThen; ifThenElse ]
-
+do
+    stmRef
+    := choice [ empty
+                ifThen
+                ifThenElse
+                assertion ]
