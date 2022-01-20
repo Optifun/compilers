@@ -27,7 +27,7 @@ type Statement =
     | Assertion of Expression * Expression
     | Empty
 
-type Program = { Statements: List<Statement> }
+type Program = { Statements: Statement list }
 
 
 
@@ -58,15 +58,16 @@ let parseLexems input =
     | Failure (err, _, _) -> Result.Error err
 
 
-let hexExpression = hexLexem |>> Expression.HexNumber
+let hexExpression = hexLexem <?> "Hex value" |>> Expression.HexNumber
 
-let identifierExpression = identifierLexem |>> Expression.Identifier
+let identifierExpression = identifierLexem <?> "Identifier" |>> Expression.Identifier
 
 let boolExpression =
-    pstring "true" <|> pstring "false"
+    pstring "true" <|> pstring "false" <?> "Boolean value"
     |>> function
         | "true" -> Expression.Boolean true
         | _ -> Expression.Boolean false
+
 
 
 let opp = OperatorPrecedenceParser<Expression, _, _>()
@@ -85,8 +86,6 @@ opp.AddOperator <| InfixOperator("<", ws, 5, Associativity.None, (fun x y -> Exp
 
 opp.AddOperator <| InfixOperator("<=", ws, 6, Associativity.None, (fun x y -> Expression.Binary(x, y, BinaryExprType.LesserThanOrEquals)))
 
-//opp.AddOperator <| InfixOperator(":=", ws, 8, Associativity.Left, (fun x y -> Expression.Assertion(x, y)))
-
 
 let expressionParser =
     choice [ opp.ExpressionParser
@@ -96,24 +95,33 @@ let expressionParser =
 
 let stmValue, stmRef = createParserForwardedToRef<Statement, unit> ()
 
-let ifParser = ((skipString "if") >>. expressionParser .>> ws1)
+let ifParser = skipString "if" >>. ws1 >>. expressionParser <?> "If"
 
-let thenParser = ((skipString "then") >>. stmValue)
+let thenParser = ws >>. skipString "then" >>. ws1 >>. stmValue <?> "Then"
 
-let elseParser = ((skipString "else") >>. stmValue .>> ws)
+let elseParser = ws >>. skipString "else" >>. ws1 >>. stmValue <?> "Else"
 
-let empty = ws >>. (skipString "...") .>> ws >>% Statement.Empty
+let empty = skipString "..." >>% Statement.Empty <?> "Empty statement"
 
-let assertion =
-    pipe2 (ws >>. identifierExpression .>> ws .>> skipString ":=") (expressionParser .>> ws) (fun id ex -> Statement.Assertion(id, ex))
+let assertion = identifierExpression .>> ws .>> skipString ":=" .>> ws .>>. expressionParser |>> Statement.Assertion <?> "Assertion"
 
-let ifThen = pipe2 ifParser thenParser (fun ex st -> Statement.IfThen(ex, st))
+let ifThen = ifParser .>>. thenParser |>> Statement.IfThen .>> ws .>> skipChar ';' <?> "If ... then ... statement"
 
-let ifThenElse = pipe3 ifParser thenParser elseParser (fun ex st1 st2 -> Statement.IfThenElse(ex, st1, st2))
+let ifThenElse =
+    pipe3 ifParser thenParser elseParser (fun ex st1 st2 -> Statement.IfThenElse(ex, st1, st2)) .>> ws .>> skipChar ';' <?> "If ... then ... else ... statement"
 
 do
     stmRef
     := choice [ empty
-                ifThen
-                ifThenElse
-                assertion ]
+                attempt assertion
+                attempt ifThenElse
+                attempt ifThen ]
+
+let syntaxParser = sepEndBy1 stmValue ws
+
+let parseCode input =
+    let parserResult = run syntaxParser input
+
+    match parserResult with
+    | Success (res, _, _) -> Result.Ok { Statements = res }
+    | Failure (err, _, _) -> Result.Error err
