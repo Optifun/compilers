@@ -62,14 +62,11 @@ let hexExpression = hexLexem |>> Expression.HexNumber
 
 let identifierExpression = identifierLexem |>> Expression.Identifier
 
-
 let boolExpression =
-    boolLexem
+    pstring "true" <|> pstring "false"
     |>> function
-        | "true" -> true
-        | "false" -> false
-        | entry -> failwithf "%s should be of type Boolean" entry
-    |>> Expression.Boolean
+        | "true" -> Expression.Boolean true
+        | _ -> Expression.Boolean false
 
 
 let opp = OperatorPrecedenceParser<Expression, _, _>()
