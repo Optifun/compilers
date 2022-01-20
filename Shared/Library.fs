@@ -24,8 +24,8 @@ type Expression =
 type Statement =
     | IfThen of Expression * Statement
     | IfThenElse of Expression * Statement * Statement
-    | Empty
     | Assertion of Expression * Expression
+    | Empty
 
 type Program = { Statements: List<Statement> }
 
@@ -34,40 +34,23 @@ type Program = { Statements: List<Statement> }
 let ws = skipMany (skipChar ' ')
 let ws1 = skipMany1 (skipChar ' ')
 
-let emptyLexem = pstring "..."
+let lexem str = pstring str
 
-let ifLexem = pstring "if" .>> ws1
+let lexemWs str = lexem str .>> ws1
 
-let thenLexem = pstring "then" .>> ws1
+let keywords = [ "if"; "then"; "else"; "true"; "false" ] |> List.map lexemWs
 
-let elseLexem = pstring "else" .>> ws1
+let other = [ "..."; ";"; "="; ">"; ">="; "<"; "<="; ":=" ] |> List.map lexem
 
-let hexLexem = pipe2 (ws >>. digit |>> Char.ToString) (manyChars hex .>> ws) (fun d rest -> d + rest)
+let charThenString chr str = pipe2 (chr |>> Char.ToString) str (fun d rest -> d + rest)
 
-let identifierLexem = many1Chars (letter <|> digit) .>> ws
+let hexLexem = charThenString digit (manyChars hex)
 
-let boolLexem: Parser<string, unit> = pstring "true" <|> pstring "false"
+let identifierLexem = charThenString letter (manyChars (letter <|> digit))
 
-let operLexem =
-    choice [ pstring "="
-             pstring ">"
-             pstring ">="
-             pstring "<"
-             pstring "<="
-             pstring ":=" ]
+let lexems = hexLexem :: identifierLexem :: keywords @ other
 
-let lexemParser =
-    sepEndBy1
-        (choice [ ifLexem
-                  thenLexem
-                  elseLexem
-                  hexLexem
-                  identifierLexem
-                  boolLexem
-                  emptyLexem
-                  operLexem ])
-        ws
-
+let lexemParser = sepEndBy1 (choice lexems) ws
 
 let parseLexems input =
     match run lexemParser input with
@@ -116,13 +99,13 @@ let expressionParser =
 
 let stmValue, stmRef = createParserForwardedToRef<Statement, unit> ()
 
-let ifParser = ((ifLexem |>> ignore)  >>. expressionParser .>> ws1)
+let ifParser = ((skipString "if") >>. expressionParser .>> ws1)
 
-let thenParser = ((thenLexem |>> ignore) >>. stmValue)
+let thenParser = ((skipString "then") >>. stmValue)
 
-let elseParser = ((elseLexem |>> ignore) >>. stmValue .>> ws)
+let elseParser = ((skipString "else") >>. stmValue .>> ws)
 
-let empty = ws >>. (emptyLexem |>> ignore) .>> ws >>% Statement.Empty
+let empty = ws >>. (skipString "...") .>> ws >>% Statement.Empty
 
 let assertion =
     pipe2 (ws >>. identifierExpression .>> ws .>> skipString ":=") (expressionParser .>> ws) (fun id ex -> Statement.Assertion(id, ex))
