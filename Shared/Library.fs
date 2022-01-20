@@ -72,9 +72,11 @@ let boolExpression =
 
 let opp = OperatorPrecedenceParser<Expression, _, _>()
 
+let whitespaced expr = between ws ws expr
+
 opp.TermParser <-
-    choice [ hexExpression
-             identifierExpression ]
+    choice [ whitespaced hexExpression
+             whitespaced identifierExpression ]
 
 opp.AddOperator <| InfixOperator("=", ws, 2, Associativity.None, (fun x y -> Expression.Binary(x, y, BinaryExprType.Equals)))
 
@@ -86,12 +88,13 @@ opp.AddOperator <| InfixOperator("<", ws, 5, Associativity.None, (fun x y -> Exp
 
 opp.AddOperator <| InfixOperator("<=", ws, 6, Associativity.None, (fun x y -> Expression.Binary(x, y, BinaryExprType.LesserThanOrEquals)))
 
+let operatorParser = opp.ExpressionParser <?> "Binary operator"
 
 let expressionParser =
-    choice [ opp.ExpressionParser
-             hexExpression
-             identifierExpression
-             boolExpression ]
+    operatorParser
+    <|> (choice [ hexExpression
+                  identifierExpression
+                  boolExpression ])
 
 let stmValue, stmRef = createParserForwardedToRef<Statement, unit> ()
 
