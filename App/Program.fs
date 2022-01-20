@@ -5,7 +5,7 @@ open Shared.Expressions
 let printLexems text =
     parseLexems text
     |> function
-        | Result.Ok x -> x |> List.map (fun l -> printf "%s " l) |> ignore
+        | Result.Ok x -> x |> List.iter (printf "%s ")
         | Result.Error e -> printfn "Error %O" e
 
 [<EntryPoint>]
@@ -21,7 +21,7 @@ let main argv =
     let mutable breakLoop = false
 
     while not breakLoop do
-        [ ""; "[0] Exit"; "[1] Print Lexems"; "[2] Print AST" ] |> List.map (printfn "%s") |> ignore
+        [ ""; "[0] Exit"; "[1] Print Lexems"; "[2] Print AST" ] |> List.iter (printfn "%s")
 
         Console.ReadLine()
         |> function
