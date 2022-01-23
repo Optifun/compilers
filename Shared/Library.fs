@@ -7,6 +7,7 @@ module Shared.Expressions
 
 open System
 open FParsec
+open FParsec
 
 type BinaryExprType =
     | Equals
@@ -33,8 +34,25 @@ type LexemType =
     | Keyword of string
     | Expression of Expression
 
-type Program = { Statements: Statement list }
+    member this.asExpression =
+        this
+        |> function
+            | Expression ex -> Some ex
+            | _ -> None
+            
+    member this.asKeyword =
+        this
+        |> function
+            | Keyword ex -> Some ex
+            | _ -> None
 
+    member this.asOperator =
+        this
+        |> function
+            | Operator ex -> Some ex
+            | _ -> None
+            
+type Program = { Statements: Statement list }
 
 
 let ws = skipMany (skipChar ' ')
