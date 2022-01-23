@@ -27,6 +27,12 @@ type Statement =
     | Assertion of Expression * Expression
     | Empty
 
+
+type LexemType =
+    | Operator of string
+    | Keyword of string
+    | Expression of Expression
+
 type Program = { Statements: Statement list }
 
 
@@ -34,21 +40,28 @@ type Program = { Statements: Statement list }
 let ws = skipMany (skipChar ' ')
 let ws1 = skipMany1 (skipChar ' ')
 
-let lexem str = pstring str
+let l str = pstring str
 
-let lexemWs str = lexem str .>> ws1
+let lws str = l str .>> ws1
 
-let keywords = [ "if"; "then"; "else"; "true"; "false" ] |> List.map lexemWs
+let keywords = [ "if"; "then"; "else" ] |> List.map (fun lexem -> lws lexem |>> LexemType.Keyword)
 
-let other = [ "..."; ";"; "="; ">"; ">="; "<"; "<="; ":=" ] |> List.map lexem
+let other = [ ";"; "..." ] |> List.map (fun lexem -> l lexem |>> LexemType.Keyword)
+
+let operators = [ "="; ">"; ">="; "<"; "<="; ":=" ] |> List.map (fun lexem -> l lexem |>> LexemType.Operator)
 
 let charThenString chr str = pipe2 (chr |>> Char.ToString) str (fun d rest -> d + rest)
 
-let hexLexem = charThenString digit (manyChars hex)
+let hexExpression = charThenString digit (manyChars hex) <?> "Hex value" |>> Expression.HexNumber
 
-let identifierLexem = charThenString letter (manyChars (letter <|> digit))
+let identifierExpression = charThenString letter (manyChars (letter <|> digit)) <?> "Identifier" |>> Expression.Identifier
 
-let lexems = hexLexem :: identifierLexem :: keywords @ other
+let hexLexem = hexExpression |>> LexemType.Expression
+
+let identifierLexem = identifierExpression |>> LexemType.Expression
+
+
+let lexems = keywords @ operators @ other @ [ hexLexem; identifierLexem ]
 
 let lexemParser = sepEndBy1 (choice lexems) ws
 
@@ -58,17 +71,12 @@ let parseLexems input =
     | Failure (err, _, _) -> Result.Error err
 
 
-let hexExpression = hexLexem <?> "Hex value" |>> Expression.HexNumber
-
-let identifierExpression = identifierLexem <?> "Identifier" |>> Expression.Identifier
 
 let boolExpression =
     pstring "true" <|> pstring "false" <?> "Boolean value"
     |>> function
         | "true" -> Expression.Boolean true
         | _ -> Expression.Boolean false
-
-
 
 let opp = OperatorPrecedenceParser<Expression, _, _>()
 

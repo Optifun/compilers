@@ -3,10 +3,15 @@ open System.IO
 open Shared.Expressions
 open FParsec
 
+let printLexem =
+    function
+    | Expression ex -> printf "%O " ex
+    | x -> printf "%O " x
+
 let printLexems text =
     parseLexems text
     |> function
-        | Result.Ok x -> x |> List.iter (printf "%s ")
+        | Result.Ok x -> x |> List.iter printLexem
         | Result.Error e -> printfn "Error %O" e
 
 let printProgram program = program.Statements |> List.iter (printf "%O ")
@@ -18,7 +23,7 @@ let printAST text =
         | Result.Error e -> printfn "Error %O" e
 
 
-let test parser expression = 
+let test parser expression =
     run (many1 parser) expression
     |> function
         | Success (r, _, _) -> List.iter (printf "%O ") r
