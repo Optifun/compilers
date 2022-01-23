@@ -7,7 +7,6 @@ module Shared.Expressions
 
 open System
 open FParsec
-open FParsec
 
 type BinaryExprType =
     | Equals

@@ -1,7 +1,6 @@
 open System
 open System.IO
 open Shared
-open Shared
 open Shared.Expressions
 open FParsec
 
@@ -56,7 +55,7 @@ let main argv =
     let search =
         searchIdentifier hashSet
         >> function
-            | Some value -> printfn "%O" value
+            | Some value -> printfn "Found: %s" value
             | _ -> printfn "Not found"
 
     parseLexems sourceCode
@@ -71,7 +70,7 @@ let main argv =
                 | _ -> ())
 
     while not breakLoop do
-        [ ""; "[0] Exit"; "[1] Print Lexems"; "[2] Print identifiers"; "[3] Search identifier"; "[4] Print AST" ] |> List.iter (printfn "%s")
+        [ ""; "[1] Print Lexems"; "[2] Print identifiers"; "[3] Search identifier"; "[4] Print AST"; "[0] Exit" ] |> List.iter (printfn "%s")
 
         Console.ReadLine()
         |> function
