@@ -3,7 +3,6 @@
 open System
 
 
-
 type HashSet<'T when 'T: equality and 'T :> obj>(size: int) =
     member val Size = size
     member val private elements = Array.create size Option<'T>.None
@@ -18,7 +17,7 @@ type HashSet<'T when 'T: equality and 'T :> obj>(size: int) =
                 match iter, this.elements.[iter] with
                 | id, Some x when id = hash && x = element -> Some id // если первый попавшийся элемент совпадает с искомым
                 | id, Some _ when id <> hash -> iterate next ((next + 1) % size) // если произошла колизия
-                | id, None when id <> hash -> Some id // если после колизии найдено свободное место
+                | id, None -> Some id // если после колизии найдено свободное место
                 | _ -> None
             else
                 None
@@ -48,15 +47,16 @@ type HashSet<'T when 'T: equality and 'T :> obj>(size: int) =
         let rec iterate (arr: 'T option array) i emptyCount =
             if (i < arr.Length) then
                 match i, arr.[i], emptyCount with
-                | i, Some x, _ ->
+                | i, Some x, n when n < 3 ->
                     printfn $"[{i}]: {x}"
                     (i + 1, 0)
                 | 0, None, _ ->
                     printfn $"[{i}]: None"
                     (i + 1, 1)
-                | i, None, 2 ->
+                | i, Some x, n when n >= 3 ->
                     printfn "..."
-                    (i + 1, emptyCount + 1)
+                    printfn $"[{i}]: {x}"
+                    (i + 1, 0)
                 | _ -> (i + 1, emptyCount + 1)
                 |> fun (index, empty) -> iterate arr index empty
 
