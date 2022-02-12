@@ -6,7 +6,9 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="Error.fs" />
         <Compile Include="AST.fs" />
+        <Compile Include="Combinators.fs" />
     </ItemGroup>
 
     <ItemGroup>
