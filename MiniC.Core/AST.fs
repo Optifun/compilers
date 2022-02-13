@@ -19,7 +19,7 @@ type TypeL =
     | FloatL
     | BoolL
     | VoidL
-    override x.ToString() =
+    override x.ToString () =
         match x with
         | IntL -> "int"
         | FloatL -> "float"
@@ -78,7 +78,7 @@ and BinaryOp =
     | Multiply
     | Divide
     | Modulus
-    override x.ToString() =
+    override x.ToString () =
         match x with
         | ConditionalOr -> "||"
         | Equal -> "=="
@@ -104,7 +104,7 @@ type Keyword =
     | BREAK
     | RETURN
     | Delimiter of string
-    override x.ToString() =
+    override x.ToString () =
         match x with
         | IF -> "if"
         | WHILE -> "while"

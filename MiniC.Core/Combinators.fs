@@ -16,20 +16,18 @@ let l str = pstring str
 let lws str = l str .>> ws1
 
 
-let genericParser<'T when 'T:>obj> (o:'T) = l (o.ToString()) >>% o
-let genericParserWs<'T when 'T:>obj> (o:'T) = lws (o.ToString()) >>% o
+let genericParser<'T when 'T :> obj> (o: 'T) = l (o.ToString()) >>% o
+let genericParserWs<'T when 'T :> obj> (o: 'T) = lws (o.ToString()) >>% o
 
-let typeLexemParser (t: TypeL): Parser<TypeL,string> = genericParser t <?> "Type lexem"
-let operatorLexemParser (op: BinaryOp): Parser<BinaryOp,string> = genericParser op <?> "Binary operator"
+let typeLexemParser (t: TypeL) : Parser<TypeL, string> = genericParser t <?> "Type lexem"
+let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, string> = genericParser op <?> "Binary operator"
 
 
 let operatorLexems: Parser<BinaryOp, string> list =
-    BinaryOp.GetCases()
-    |> List.map operatorLexemParser
+    BinaryOp.GetCases() |> List.map operatorLexemParser
 
 let typeLexems: Parser<TypeL, string> list =
-    TypeL.GetCases()
-    |> List.map typeLexemParser
+    TypeL.GetCases() |> List.map typeLexemParser
 
 let delimiterLexems: Parser<Keyword, string> list =
     [ ";"; "("; ")"; "{"; "}"; "["; "]" ]
@@ -72,13 +70,11 @@ let charThenString (chr: Parser<char, unit>) (str: Parser<string, unit>) =
     pipe2 (chr |>> Char.ToString) str (fun d rest -> d + rest)
 
 let integerLiteral =
-    charThenString digit (manyChars hex)
-    <??> "Integer"
+    charThenString digit (manyChars hex) <??> "Integer"
     |>> (parseInteger >> Result.map Literal.IntNumber)
 
 let identifierExpression =
-    charThenString letter (manyChars (letter <|> digit))
-    <??> "Identifier"
+    charThenString letter (manyChars (letter <|> digit)) <??> "Identifier"
 
 type LexemParseResult =
     | Literal of Literal
@@ -86,4 +82,3 @@ type LexemParseResult =
     | TypeLexem of TypeL
     | BinaryOperator of BinaryOp
     | Identifier of string
-    

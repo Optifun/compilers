@@ -48,10 +48,10 @@ let ``Type lexem parser parsers all type literals`` () =
     let parser = sepEndBy1 typeLexemCombinator <| ws
 
     let expected =
-        [TypeL.IntL
-         TypeL.VoidL
-         TypeL.BoolL
-         TypeL.FloatL]
+        [ TypeL.IntL
+          TypeL.VoidL
+          TypeL.BoolL
+          TypeL.FloatL ]
         |> List.map TypeLexem
 
     runParser input parser
