@@ -56,30 +56,42 @@ let keywordLexems: Parser<Keyword, string> list =
     |> List.map (fun (key, str) -> lws str >>% key)
 
 
-let parseInteger (str: string) : Result<int, ErrorMessage> =
+let parseInteger (sign: char option, str: string) : Result<int, ErrorMessage> =
     let mutable value = -1
 
-    if (Int32.TryParse(str, &value)) then
-        Result.Ok value
-    else
-        Result.Error(ErrorMessage.InvalidIntegerLiteral str)
+    match Int32.TryParse(str, &value), sign with
+    | true, Some '-' -> Result.Ok -value
+    | true, _ -> Result.Ok value
+    | false, _ -> Result.Error(ErrorMessage.InvalidIntegerLiteral str)
 
 
-let parseFloat (str: string) : Result<float, ErrorMessage> =
+let parseFloat (sign: char option, (str: string, str2: string)) : Result<float, ErrorMessage> =
     let mutable value = -1.0
+    let target = str + "." + str2
 
-    if (Double.TryParse(str, &value)) then
-        Result.Ok value
-    else
-        Result.Error(ErrorMessage.InvalidFloatLiteral str)
+    match Double.TryParse(target, &value), sign with
+    | true, Some '-' -> Result.Ok -value
+    | true, _ -> Result.Ok value
+    | false, _ -> Result.Error(ErrorMessage.InvalidFloatLiteral target)
+
 
 let charThenString (chr: Parser<char, string>) (str: Parser<string, string>) =
     pipe2 (chr |>> Char.ToString) str (fun d rest -> d + rest)
 
+
+let signOperation: Parser<char option, string> =
+    opt (pchar '-' <|> pchar '+')
+
 let integerLiteral =
-    charThenString digit (manyChars hex) <??> "Integer"
+    signOperation .>>. many1Chars digit .>> notFollowedBy (pchar '.')
+    <??> "Integer"
     |>> (parseInteger >> Result.map Literal.IntNumber)
 
+let floatLiteral =
+    (signOperation
+     .>>. (many1Chars digit .>> skipChar '.' .>>. manyChars digit))
+    <??> "Float"
+    |>> (parseFloat >> Result.map Literal.FloatNumber)
 
 let booleanLiteral: Parser<Result<Literal, ErrorMessage>, string> =
     (pstring "true" <|> pstring "false") <??> "Boolean"
