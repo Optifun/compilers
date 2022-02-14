@@ -56,3 +56,64 @@ let ``Type lexem parser parsers all type literals`` () =
 
     runParser input parser
     |> mapParserResult (fun v -> v |> should equal expected)
+
+
+[<Test>]
+let ``Keyword lexem parser parsers all keyword literals`` () =
+    let input = "if else for while break return "
+    let parser = sepEndBy1 keywordLexemCombinator <| ws
+
+    let expected =
+        [ Keyword.IF
+          Keyword.ELSE
+          Keyword.FOR
+          Keyword.WHILE
+          Keyword.BREAK
+          Keyword.RETURN ]
+        |> List.map Keyword
+
+    runParser input parser
+    |> mapParserResult (fun v -> v |> should equal expected)
+
+[<Test>]
+let ``Keyword lexem parser parsers all delimiters`` () =
+    let input = ";.({[]})"
+    let parser = sepEndBy1 keywordLexemCombinator <| ws
+
+    let expected =
+        [ Keyword.Delimiter ";"
+          Keyword.Delimiter "."
+          Keyword.Delimiter "("
+          Keyword.Delimiter "{"
+          Keyword.Delimiter "["
+          Keyword.Delimiter "]"
+          Keyword.Delimiter "}"
+          Keyword.Delimiter ")" ]
+        |> List.map Keyword
+
+    runParser input parser
+    |> mapParserResult (fun v -> v |> should equal expected)
+
+[<Test>]
+let ``Operator lexem parser parsers all operators`` () =
+    let input = "== != <= < >= > || && + - * / %"
+    let parser = sepEndBy1 operatorLexemCombinator <| ws
+
+    let expected =
+        [ Equal
+          NotEqual
+          LessEqual
+          Less
+          GreaterEqual
+          Greater
+          ConditionalOr
+          ConditionalAnd
+          Add
+          Subtract
+          Multiply
+          Divide
+          Modulus ]
+        |> List.map LexemParseResult.BinaryOperator
+
+    runParser input parser
+    |> mapParserResult (fun v -> v |> should equal expected)

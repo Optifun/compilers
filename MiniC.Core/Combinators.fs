@@ -30,7 +30,7 @@ let typeLexems: Parser<TypeL, string> list =
     TypeL.GetCases() |> List.map typeLexemParser
 
 let delimiterLexems: Parser<Keyword, string> list =
-    [ ";"; "("; ")"; "{"; "}"; "["; "]" ]
+    [ ";"; "("; ")"; "."; "{"; "}"; "["; "]" ]
     |> List.map (fun lexem -> l lexem |>> Keyword.Delimiter)
 
 let keywordLexems: Parser<Keyword, string> list =
