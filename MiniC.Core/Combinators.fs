@@ -30,7 +30,14 @@ let typeLexems: Parser<TypeL, string> list =
     TypeL.GetCases() |> List.map typeLexemParser
 
 let delimiterLexems: Parser<Keyword, string> list =
-    [ ";"; "("; ")"; "."; "{"; "}"; "["; "]" ]
+    [ ";"
+      "("
+      ")"
+      "."
+      "{"
+      "}"
+      "["
+      "]" ]
     |> List.map (fun lexem -> l lexem |>> Keyword.Delimiter)
 
 let keywordLexems: Parser<Keyword, string> list =
@@ -66,15 +73,24 @@ let parseFloat (str: string) : Result<float, ErrorMessage> =
     else
         Result.Error(ErrorMessage.InvalidFloatLiteral str)
 
-let charThenString (chr: Parser<char, unit>) (str: Parser<string, unit>) =
+let charThenString (chr: Parser<char, string>) (str: Parser<string, string>) =
     pipe2 (chr |>> Char.ToString) str (fun d rest -> d + rest)
 
 let integerLiteral =
     charThenString digit (manyChars hex) <??> "Integer"
     |>> (parseInteger >> Result.map Literal.IntNumber)
 
+
+let booleanLiteral: Parser<Result<Literal, ErrorMessage>, string> =
+    (pstring "true" <|> pstring "false") <??> "Boolean"
+    |>> function
+        | "true" -> Result.Ok <| Literal.Boolean true
+        | "false" -> Result.Ok <| Literal.Boolean false
+        | s -> Result.Error <| InvalidBooleanLiteral s
+
 let identifierExpression =
     charThenString letter (manyChars (letter <|> digit)) <??> "Identifier"
+
 
 type LexemParseResult =
     | Literal of Literal
