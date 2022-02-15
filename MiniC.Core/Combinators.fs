@@ -62,17 +62,16 @@ let parseInteger (sign: char option, str: string) : Result<int, ErrorMessage> =
     match Int32.TryParse(str, &value), sign with
     | true, Some '-' -> Result.Ok -value
     | true, _ -> Result.Ok value
-    | false, _ -> Result.Error(ErrorMessage.InvalidIntegerLiteral str)
+    | false, _ -> Result.Error <| ErrorMessage.InvalidIntegerLiteral str
 
 
-let parseFloat (sign: char option, (str: string, str2: string)) : Result<float, ErrorMessage> =
-    let mutable value = -1.0
-    let target = str + "." + str2
+let parseFloat (sign: char option, fstring: string) : Result<float, ErrorMessage> =
+    let parseFloat = Result.protect float
 
-    match Double.TryParse(target, &value), sign with
-    | true, Some '-' -> Result.Ok -value
-    | true, _ -> Result.Ok value
-    | false, _ -> Result.Error(ErrorMessage.InvalidFloatLiteral target)
+    match parseFloat fstring, sign with
+    | Result.Ok value, Some '-' -> Result.Ok -value
+    | Result.Ok value, _ -> Result.Ok value
+    | Result.Error _, _ -> Result.Error <| ErrorMessage.InvalidFloatLiteral fstring
 
 
 let charThenString (chr: Parser<char, string>) (str: Parser<string, string>) =
@@ -88,8 +87,7 @@ let integerLiteral =
     |>> (parseInteger >> Result.map Literal.IntNumber)
 
 let floatLiteral =
-    (signOperation
-     .>>. (many1Chars digit .>> skipChar '.' .>>. manyChars digit))
+    pipe3 signOperation (many1Chars digit .>> pchar '.') (manyChars digit) (fun sign d f -> sign, d + "." + f)
     <??> "Float"
     |>> (parseFloat >> Result.map Literal.FloatNumber)
 
