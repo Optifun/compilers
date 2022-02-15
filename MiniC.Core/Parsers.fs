@@ -6,21 +6,18 @@ open MiniC.Core.AST
 open MiniC.Core.Combinators
 
 let typeLexemCombinator =
-    typeLexems
-    |> List.map (fun l -> l |>> LexemParseResult.TypeLexem)
-    |> choice
+    choice typeLexems |>> LexemParseResult.TypeLexem
 
 let keywordLexemCombinator =
-    keywordLexems @ delimiterLexems
-    |> List.map (fun l -> l |>> LexemParseResult.Keyword)
-    |> choice
+    choice (keywordLexems @ delimiterLexems) |>> LexemParseResult.Keyword
 
 let operatorLexemCombinator =
-    operatorLexems
-    |> List.map (fun l -> l |>> LexemParseResult.BinaryOperator)
-    |> choice
+    choice operatorLexems |>> LexemParseResult.BinaryOperator
 
 let literalResultFunc (r: Result<Literal, 'b>) : Result<LexemParseResult, 'b> = r |> Result.map LexemParseResult.Literal
+
+let identifierCombinator =
+    identifierExpression |>> LexemParseResult.Identifier
 
 let literalLexemCombinator =
     choice [ attempt booleanLiteral
