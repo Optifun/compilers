@@ -101,10 +101,18 @@ let booleanLiteral: Parser<Result<Literal, ErrorMessage>, string> =
 let identifierExpression =
     charThenString letter (manyChars (letter <|> digit)) <??> "Identifier"
 
-
 type LexemParseResult =
     | Literal of Literal
     | Keyword of Keyword
     | TypeLexem of TypeL
     | BinaryOperator of BinaryOp
     | Identifier of string
+
+    static member bind (value: obj) =
+        match value with
+        | :? AST.Literal as v -> LexemParseResult.Literal v
+        | :? AST.Keyword as v -> LexemParseResult.Keyword v
+        | :? AST.TypeL as v -> LexemParseResult.TypeLexem v
+        | :? AST.BinaryOp as v -> LexemParseResult.BinaryOperator v
+        | :? string as v -> LexemParseResult.Identifier v
+        | _ -> failwith "can't cast value to LexemParseResult"

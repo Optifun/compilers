@@ -7,6 +7,7 @@ open FParsec
 open FsUnit
 open MiniC.Core.Parsers
 open MiniC.Core.Combinators
+open NUnit.Framework.Internal
 
 
 let runParser input parser = runParserOnString parser "" "some" input
@@ -167,3 +168,22 @@ let ``Literal parser parses float literals`` () =
 
     runParser input parser
     |> mapParserResult (List.map Result.get >> fun v -> v |> should equal expected)
+
+[<Test>]
+let ``Lexem parser parses each lexem`` () =
+    let input = "( a * 1.0 ) if true a < 2"
+
+    let expectedList =
+        [ LexemParseResult.bind <| Delimiter "("
+          LexemParseResult.bind <| "a"
+          LexemParseResult.bind <| BinaryOp.Multiply
+          LexemParseResult.bind <| Literal.FloatNumber 1.0
+          LexemParseResult.bind <| Delimiter ")"
+          LexemParseResult.bind <| Keyword.IF
+          LexemParseResult.bind <| Literal.Boolean true
+          LexemParseResult.bind <| "a"
+          LexemParseResult.bind <| BinaryOp.Less
+          LexemParseResult.bind <| Literal.IntNumber 2 ]
+
+    runParser input lexemParser
+    |> mapParserResult (List.map Result.get >> fun l -> l |> should equal expectedList)

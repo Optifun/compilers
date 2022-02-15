@@ -24,3 +24,12 @@ let literalLexemCombinator =
              attempt integerLiteral
              floatLiteral ]
     |>> literalResultFunc
+
+let lexemParser =
+    sepEndBy1
+        (choice [ attempt typeLexemCombinator |>> Result.Ok
+                  attempt keywordLexemCombinator |>> Result.Ok
+                  attempt operatorLexemCombinator |>> Result.Ok
+                  attempt literalLexemCombinator
+                  identifierCombinator |>> Result.Ok ])
+        ws
