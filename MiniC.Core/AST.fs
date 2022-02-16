@@ -65,13 +65,14 @@ type Expression =
     | Identifier of Identifier
 
 and BinaryOp =
-    | ConditionalOr
     | Equal
     | NotEqual
     | LessEqual
-    | Less
     | GreaterEqual
+    | Assignment
+    | Less
     | Greater
+    | ConditionalOr
     | ConditionalAnd
     | Add
     | Subtract
@@ -80,6 +81,7 @@ and BinaryOp =
     | Modulus
     override x.ToString () =
         match x with
+        | Assignment -> "="
         | ConditionalOr -> "||"
         | Equal -> "=="
         | NotEqual -> "!="
