@@ -98,11 +98,12 @@ let ``Keyword lexem parser parses all delimiters`` () =
 
 [<Test>]
 let ``Operator lexem parser parses all operators`` () =
-    let input = "== != <= < >= > || && + - * / %"
+    let input = "= == != <= < >= > || && + - * / %"
     let parser = sepEndBy1 operatorLexemCombinator <| ws
 
     let expected =
-        [ Equal
+        [ Assignment
+          Equal
           NotEqual
           LessEqual
           Less
@@ -171,13 +172,15 @@ let ``Literal parser parses float literals`` () =
 
 [<Test>]
 let ``Lexem parser parses each lexem`` () =
-    let input = "( a * 1.0 ) if true a < 2"
+    let input = "( a = 1.0 == 2.0 ) if true a < 2"
 
     let expectedList =
         [ LexemParseResult.bind <| Delimiter "("
           LexemParseResult.bind <| "a"
-          LexemParseResult.bind <| BinaryOp.Multiply
+          LexemParseResult.bind <| BinaryOp.Assignment
           LexemParseResult.bind <| Literal.FloatNumber 1.0
+          LexemParseResult.bind <| BinaryOp.Equal
+          LexemParseResult.bind <| Literal.FloatNumber 2.0
           LexemParseResult.bind <| Delimiter ")"
           LexemParseResult.bind <| Keyword.IF
           LexemParseResult.bind <| Literal.Boolean true
