@@ -7,7 +7,7 @@ open FParsec
 open FsUnit
 open MiniC.Core.Parsers
 open MiniC.Core.Combinators
-open NUnit.Framework.Internal
+open MiniC.Core.Combinators.Lexem
 
 
 let runParser input parser = runParserOnString parser "" "some" input

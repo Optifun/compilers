@@ -4,6 +4,7 @@ open FSharpPlus
 open FParsec
 open MiniC.Core.AST
 open MiniC.Core.Combinators
+open MiniC.Core.Combinators.Lexem
 
 let typeLexemCombinator =
     choice typeLexems |>> LexemParseResult.TypeLexem
