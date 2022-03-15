@@ -35,4 +35,51 @@ let ``Parse arguments definition`` () =
     runParser input parser
     |> toResult
     |> Result.get
-    |> (fun v -> v |> should equal expect)
+    |> (fun r -> r |> should equal expect)
+
+[<Test>]
+let ``Parse one argument definition`` () =
+    let input = "int a"
+    let parser = argsParser
+
+    let expect: Parameter list =
+        [ { Name = "a"
+            TypeDecl = TypeLiteral.TypeL IntL } ]
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> (fun r -> r |> should equal expect)
+
+[<Test>]
+let ``Parse variable declaration`` () =
+    let input = "int a;"
+    let parser = simpleVar
+
+    let expect: Statement =
+        Statement.Declaration
+        <| Variable
+            { Name = "a"
+              TypeDecl = TypeLiteral.TypeL IntL }
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> (fun r -> r |> should equal expect)
+
+[<Test>]
+let ``Parse variable initialisation`` () =
+    let input = "int a = 4;"
+    let parser = simpleInit
+
+    let expect: Statement =
+        (Variable
+            { Name = "a"
+              TypeDecl = TypeLiteral.TypeL IntL },
+         Literal.IntNumber 4)
+        |> Statement.Initialization
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> (fun r -> r |> should equal expect)

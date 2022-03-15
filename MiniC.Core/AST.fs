@@ -82,10 +82,12 @@ type Expression =
 
 and Statement =
     | Expression of Expression
-    | Initialization of Identifier * Literal
+    | Initialization of Initialization
     | Return of Expression
     | Block of Block
     | Declaration of Identifier
+
+and Initialization = Identifier * Literal
 
 and Block = Statement list
 
