@@ -1,4 +1,4 @@
-module MiniC.Core.Tests
+module MiniC.Core.Tests.Lexem
 
 open MiniC.Core.AST
 open NUnit.Framework
@@ -7,7 +7,6 @@ open FParsec
 open FsUnit
 open MiniC.Core.Parsers
 open MiniC.Core.Combinators
-open MiniC.Core.Combinators.Lexem
 
 
 let runParser input parser = runParserOnString parser "" "some" input

@@ -10,6 +10,7 @@
 
     <ItemGroup>
         <Compile Include="LexemParsing.fs" />
+        <Compile Include="SyntaxParsing.fs" />
     </ItemGroup>
 
     <ItemGroup>
