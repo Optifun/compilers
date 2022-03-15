@@ -185,8 +185,8 @@ module Syntax =
 
     let funcCallParser =
         identifierStringParser .>> ws
-        .>>.? curlyP (sepBy1 funcArgument (skipChar ','))
-        |>> FunctionCall
+        .>>.? curlyP (sepBy funcArgument (ws >>. skipChar ',' >>. ws))
+        |>> fun (f, args) -> { FuncName = f; Arguments = args }
 
     do
         expressionParserRef

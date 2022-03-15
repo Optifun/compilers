@@ -70,7 +70,9 @@ type Argument =
     | Identifier of string
     | Literal of Literal
 
-type FunctionCall = string * Argument list
+type FunctionCall =
+    { FuncName: string
+      Arguments: Argument list }
 
 type Expression =
     | Empty

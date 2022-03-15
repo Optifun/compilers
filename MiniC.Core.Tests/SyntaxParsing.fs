@@ -35,7 +35,7 @@ let ``Parse arguments definition`` () =
     runParser input parser
     |> toResult
     |> Result.get
-    |> (fun r -> r |> should equal expect)
+    |> should equal expect
 
 [<Test>]
 let ``Parse one argument definition`` () =
@@ -49,7 +49,7 @@ let ``Parse one argument definition`` () =
     runParser input parser
     |> toResult
     |> Result.get
-    |> (fun r -> r |> should equal expect)
+    |> should equal expect
 
 [<Test>]
 let ``Parse variable declaration`` () =
@@ -65,7 +65,7 @@ let ``Parse variable declaration`` () =
     runParser input parser
     |> toResult
     |> Result.get
-    |> (fun r -> r |> should equal expect)
+    |> should equal expect
 
 [<Test>]
 let ``Parse variable initialisation`` () =
@@ -82,4 +82,78 @@ let ``Parse variable initialisation`` () =
     runParser input parser
     |> toResult
     |> Result.get
-    |> (fun r -> r |> should equal expect)
+    |> should equal expect
+
+[<Test>]
+let ``Parse int literal as expression`` () =
+    let input = "4"
+    let parser = expressionParser
+
+    let expect: Expression =
+        Literal.IntNumber 4 |> Expression.Literal
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
+
+[<Test>]
+let ``Parse float literal as expression`` () =
+    let input = "0.5"
+    let parser = expressionParser
+
+    let expect: Expression =
+        Literal.FloatNumber 0.5 |> Expression.Literal
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
+
+[<Test>]
+let ``Parse function call with three args as expression`` () =
+    let input = "func(a, 4, true);"
+    let parser = expressionParser
+
+    let expect: Expression =
+        { FuncName = "func"
+          Arguments =
+            [ Argument.Identifier "a"
+              Argument.Literal <| Literal.IntNumber 4
+              Argument.Literal <| Literal.Boolean true ] }
+        |> Expression.Call
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
+
+[<Test>]
+let ``Parse function call with two args without whitespaces as expression`` () =
+    let input = "func(true,false);"
+    let parser = expressionParser
+
+    let expect: Expression =
+        { FuncName = "func"
+          Arguments =
+            [ Argument.Literal <| Literal.Boolean true
+              Argument.Literal <| Literal.Boolean false ] }
+        |> Expression.Call
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
+
+[<Test>]
+let ``Parse function call with zero args as expression`` () =
+    let input = "func();"
+    let parser = expressionParser
+
+    let expect: Expression =
+        { FuncName = "func"; Arguments = [] } |> Expression.Call
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
