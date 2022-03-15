@@ -157,8 +157,9 @@ module Syntax =
         | t, Parameter x when x.TypeDecl = t -> preturn (var, literal)
         | _ -> fail "Type mismatch"
 
-    let initialisationParser =
-        varDeclarationParser .>> ws .>> skipChar '=' .>>. literalLexemParser
+    let initializationParser =
+        varDeclarationParser .>> ws .>> skipChar '=' .>> ws
+        .>>. literalLexemParser
         >>= (fun (v, l) -> checkTypes v l)
 
     let curlyP p = between (skipChar '(') (skipChar ')') p
@@ -212,7 +213,7 @@ module Syntax =
         varDeclarationParser .>> ws .>> skipChar ';' |>> Statement.Declaration
 
     let simpleInit =
-        initialisationParser .>> ws .>> skipChar ';'
+        initializationParser .>> ws .>> skipChar ';'
         |>> Statement.Initialization
 
     do
