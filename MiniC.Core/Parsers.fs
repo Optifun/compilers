@@ -18,7 +18,7 @@ let operatorLexemCombinator =
 let literalResultFunc (r: Result<Literal, 'b>) : Result<LexemParseResult, 'b> = r |> Result.map LexemParseResult.Literal
 
 let identifierCombinator =
-    identifierExpression |>> LexemParseResult.Identifier
+    identifierStringParser |>> LexemParseResult.Identifier
 
 let literalLexemCombinator =
     choice [ attempt booleanLiteral

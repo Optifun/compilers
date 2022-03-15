@@ -1,5 +1,6 @@
 ﻿module MiniC.Core.AST
 
+open System.Linq.Expressions
 open Microsoft.FSharp.Reflection
 
 let internal GetCases<'Type> () =
@@ -13,8 +14,14 @@ type Literal =
     | IntNumber of Value: int
     | FloatNumber of Value: float
     | Boolean of Value: bool
+    member x.GetTypeLiteral () =
+        x
+        |> function
+            | IntNumber _ -> IntL |> TypeLiteral.TypeL
+            | FloatNumber _ -> FloatL |> TypeLiteral.TypeL
+            | _ -> BoolL |> TypeLiteral.TypeL
 
-type TypeL =
+and TypeL =
     | IntL
     | FloatL
     | BoolL
@@ -29,33 +36,41 @@ type TypeL =
     static member GetCases = GetCases<TypeL>
 
 and TypeLiteral =
-    | TypeL
+    | TypeL of TypeL
     | ArrayL of TypeL * int option
 
 type Identifier =
     | Variable of Variable
     | Parameter of Parameter
-    | Function of Function
+    | Function of FunctionDecl
 
 and Scope =
     | Global
-    | Function of Function
+    | Function of FunctionDecl
 
-and Function =
+and FunctionDecl =
     { Parameters: Parameter list
       ReturnType: TypeLiteral
       Name: string }
 
+
 and Parameter =
     { TypeDecl: TypeLiteral
       Name: string
-      Function: Function }
+    //      Function: Function
+     }
 
 and Variable =
     { TypeDecl: TypeLiteral
       Name: string
-      Scope: Scope }
+    //      Scope: Scope
+     }
 
+type Argument =
+    | Identifier of string
+    | Literal of Literal
+
+type FunctionCall = string * Argument list
 
 type Expression =
     | Empty
@@ -63,6 +78,18 @@ type Expression =
     | Binary of BinaryOp * Expression * Expression
     | Literal of Literal
     | Identifier of Identifier
+    | Call of FunctionCall
+
+and Statement =
+    | Expression of Expression
+    | Initialization of Identifier * Literal
+    | Return of Expression
+    | Block of Block
+    | Declaration of Identifier
+
+and Block = Statement list
+
+and Function = FunctionDecl * Block
 
 and BinaryOp =
     | Equal

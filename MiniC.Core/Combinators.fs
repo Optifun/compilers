@@ -6,7 +6,7 @@ open FParsec
 open MiniC.Core.AST
 open MiniC.Core.Error
 
-let ws: Parser<unit, string> = skipMany (skipChar ' ')
+let ws: Parser<unit, _> = skipMany (skipChar ' ')
 let ws1 = skipMany1 (skipChar ' ')
 
 let l str = pstring str
@@ -35,28 +35,36 @@ let parseFloat (sign: char option, fstring: string) : Result<float, ErrorMessage
     | Result.Error _, _ -> Result.Error <| ErrorMessage.InvalidFloatLiteral fstring
 
 
-let charThenString (chr: Parser<char, string>) (str: Parser<string, string>) =
+let charThenString (chr: Parser<char, _>) (str: Parser<string, _>) =
     pipe2 (chr |>> Char.ToString) str (fun d rest -> d + rest)
 
+let mapResultToReply msg res =
+    res
+    |> function
+        | Result.Ok x -> preturn x
+        | Result.Error e -> fail msg
 
+
+[<AutoOpen>]
 module Lexem =
 
 
-    let typeLexemParser (t: TypeL) : Parser<TypeL, string> = genericParser t <?> "Type lexem"
-    let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, string> = genericParser op <?> "Binary operator"
+    let typeLexemParser (t: TypeL) : Parser<TypeL, _> = genericParser t <?> "Type lexem"
+    let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, _> = genericParser op <?> "Binary operator"
 
 
-    let operatorLexems: Parser<BinaryOp, string> list =
+    let operatorLexems: Parser<BinaryOp, _> list =
         BinaryOp.GetCases() |> List.map operatorLexemParser
 
-    let typeLexems: Parser<TypeL, string> list =
+    let typeLexems: Parser<TypeL, _> list =
         TypeL.GetCases() |> List.map typeLexemParser
 
     let delimiterLexems: Parser<Keyword, string> list =
         [ ";"
+          "."
+          ","
           "("
           ")"
-          "."
           "{"
           "}"
           "["
@@ -78,7 +86,7 @@ module Lexem =
                       Keyword.RETURN ]
         |> List.map (fun (key, str) -> lws str >>% key)
 
-    let signOperation: Parser<char option, string> =
+    let signOperation: Parser<char option, _> =
         opt (pchar '-' <|> pchar '+')
 
     let integerLiteral =
@@ -98,7 +106,7 @@ module Lexem =
             | "false" -> Result.Ok <| Literal.Boolean false
             | s -> Result.Error <| InvalidBooleanLiteral s
 
-    let identifierExpression =
+    let identifierStringParser =
         charThenString letter (manyChars (letter <|> digit)) <??> "Identifier"
 
     type LexemParseResult =
@@ -116,3 +124,106 @@ module Lexem =
             | :? AST.BinaryOp as v -> LexemParseResult.BinaryOperator v
             | :? string as v -> LexemParseResult.Identifier v
             | _ -> failwith "can't cast value to LexemParseResult"
+
+
+
+
+module Syntax =
+    let typeLexemParser =
+        choice typeLexems |>> TypeLiteral.TypeL
+
+    let operatorLexemCombinator = choice operatorLexems
+
+    let literalLexemParser: Parser<Literal, _> =
+        choice [ attempt booleanLiteral
+                 attempt integerLiteral
+                 floatLiteral ]
+        >>= mapResultToReply "Incorrect literal"
+
+    let argParser: Parser<Parameter, _> =
+        typeLexemParser .>> ws1 .>>. identifierStringParser
+        |>> fun (t, i) -> { Name = i; TypeDecl = t }
+
+    let argsParser =
+        sepBy1 argParser (ws >>. skipChar ',' >>. ws)
+
+    let varDeclarationParser =
+        typeLexemParser .>> ws1 .>>.? identifierStringParser
+        |>> fun (t, i) -> Variable { Name = i; TypeDecl = t }
+
+    let checkTypes (var: Identifier) (literal: Literal) =
+        match literal.GetTypeLiteral(), var with
+        | t, Variable x when x.TypeDecl = t -> preturn (var, literal)
+        | t, Parameter x when x.TypeDecl = t -> preturn (var, literal)
+        | _ -> fail "Type mismatch"
+
+    let initialisationParser =
+        varDeclarationParser .>> ws .>> skipChar '=' .>>. literalLexemParser
+        >>= (fun (v, l) -> checkTypes v l)
+
+    let curlyP p = between (skipChar '(') (skipChar ')') p
+
+    let funcDeclarationParser =
+        typeLexemParser .>> ws1 .>>.? identifierStringParser .>> ws
+        .>>. curlyP argsParser
+        |>> fun ((t, i), p) ->
+                { Name = i
+                  ReturnType = t
+                  Parameters = p }
+
+    let expressionStub, expressionParserRef =
+        createParserForwardedToRef ()
+
+    let returnStm =
+        skipString "return" >>. ws1 >>. expressionStub .>> skipChar ';'
+        |>> Statement.Return
+
+    let funcArgument =
+        (literalLexemParser |>> Argument.Literal)
+        <|> (identifierStringParser |>> Argument.Identifier)
+
+    let funcCallParser =
+        identifierStringParser .>> ws
+        .>>.? curlyP (sepBy1 funcArgument (skipChar ','))
+        |>> FunctionCall
+
+    do
+        expressionParserRef
+        := choice [ literalLexemParser |>> Expression.Literal
+                    funcCallParser |>> Expression.Call
+                    // identifierStringParser |>> Expression.Identifier
+                     ]
+
+    let expressionParser = expressionParserRef.Value
+
+    let statementStub, statementParserRef =
+        createParserForwardedToRef ()
+
+    let blockParser: Parser<Block, _> =
+        between (skipChar '{') (skipChar '}') (many1 statementStub)
+
+    let functionParser: Parser<Function, _> =
+        funcDeclarationParser .>>. between ws ws blockParser
+
+    let simpleStatement =
+        expressionParser .>> ws .>> skipChar ';' |>> Statement.Expression
+
+    let simpleVar =
+        varDeclarationParser .>> ws .>> skipChar ';' |>> Statement.Declaration
+
+    let simpleInit =
+        initialisationParser .>> ws .>> skipChar ';'
+        |>> Statement.Initialization
+
+    do
+        statementParserRef
+        := between ws ws
+           <| choice [ attempt blockParser |>> Statement.Block
+                       attempt returnStm
+                       attempt simpleInit
+                       attempt simpleVar
+                       simpleStatement ]
+
+    let statementParser = statementParserRef.Value
+
+    let programParser = many statementParser
