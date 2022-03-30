@@ -248,3 +248,82 @@ let ``Parse function call inside function body`` () =
     |> toResult
     |> Result.get
     |> should equal expect
+
+
+[<Test>]
+let ``Parse nested statement blocks`` () =
+    let input =
+        "void function(int a, bool b)
+        {
+            int example(bool value)
+            {
+                return 23;
+            }
+            {
+                int c = example(24, true);
+            }
+        }
+        "
+
+    let parser = statementParser
+
+    let func1: FunctionDecl =
+        { Name = "function"
+          ReturnType = TypeL VoidL
+          Parameters =
+            [ { TypeDecl = TypeL IntL; Name = "a" }
+              { TypeDecl = TypeL BoolL; Name = "b" } ] }
+
+    let func2: FunctionDecl =
+        { Name = "example"
+          ReturnType = TypeL IntL
+          Parameters =
+            [ { TypeDecl = TypeL BoolL
+                Name = "value" } ] }
+
+    let expect =
+        FuncDeclaration(
+            func1,
+            [ FuncDeclaration(func2, [ Return << Literal << IntNumber <| 23 ])
+              Block [ Initialization(
+                          { TypeDecl = TypeL IntL; Name = "c" },
+                          Call
+                              { FuncName = "example"
+                                Arguments =
+                                  [ Literal <| IntNumber 24
+                                    Literal <| Boolean true ] }
+                      ) ] ]
+        )
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
+
+[<Test>]
+let ``Parse declarations as program`` () =
+    let input =
+        "
+        int abc;
+        int def = 4;
+        void function(int a, bool b){;}
+        "
+
+    let parser = programParser
+
+    let func: FunctionDecl =
+        { Name = "function"
+          ReturnType = TypeL VoidL
+          Parameters =
+            [ { TypeDecl = TypeL IntL; Name = "a" }
+              { TypeDecl = TypeL BoolL; Name = "b" } ] }
+
+    let expect =
+        [ VarDeclaration { TypeDecl = TypeL IntL; Name = "abc" }
+          Initialization({ TypeDecl = TypeL IntL; Name = "def" }, Literal << IntNumber <| 4)
+          FuncDeclaration(func, [ Statement.Empty ]) ]
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
