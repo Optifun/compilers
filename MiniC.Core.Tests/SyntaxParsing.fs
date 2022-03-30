@@ -59,8 +59,7 @@ let ``Parse variable declaration`` () =
     let parser = simpleVar
 
     let expect: Statement =
-        Statement.Declaration
-        <| Variable
+        Statement.VarDeclaration
             { Name = "a"
               TypeDecl = TypeLiteral.TypeL IntL }
 
@@ -75,11 +74,11 @@ let ``Parse variable initialisation`` () =
     let parser = simpleInit
 
     let expect: Statement =
-        (Variable
+        Statement.Initialization(
             { Name = "a"
               TypeDecl = TypeLiteral.TypeL IntL },
-         Literal.IntNumber 4)
-        |> Statement.Initialization
+            Literal.IntNumber 4
+        )
 
     runParser input parser
     |> toResult
@@ -117,13 +116,13 @@ let ``Parse function call with three args as expression`` () =
     let input = "func(a, 4, true);"
     let parser = expressionParser
 
-    let expect: Expression =
-        { FuncName = "func"
-          Arguments =
-            [ Argument.Identifier "a"
-              Argument.Literal <| Literal.IntNumber 4
-              Argument.Literal <| Literal.Boolean true ] }
-        |> Expression.Call
+    let expect =
+        Expression.Call
+            { FuncName = "func"
+              Arguments =
+                [ Expression.Identifier "a"
+                  Expression.Literal <| Literal.IntNumber 4
+                  Expression.Literal <| Literal.Boolean true ] }
 
     runParser input parser
     |> toResult
@@ -136,11 +135,11 @@ let ``Parse function call with two args without whitespaces as expression`` () =
     let parser = expressionParser
 
     let expect: Expression =
-        { FuncName = "func"
-          Arguments =
-            [ Argument.Literal <| Literal.Boolean true
-              Argument.Literal <| Literal.Boolean false ] }
-        |> Expression.Call
+        Expression.Call
+            { FuncName = "func"
+              Arguments =
+                [ Expression.Literal <| Literal.Boolean true
+                  Expression.Literal <| Literal.Boolean false ] }
 
     runParser input parser
     |> toResult

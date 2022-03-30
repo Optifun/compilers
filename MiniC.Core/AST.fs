@@ -1,6 +1,5 @@
 ﻿module MiniC.Core.AST
 
-open System.Linq.Expressions
 open Microsoft.FSharp.Reflection
 
 let internal GetCases<'Type> () =
@@ -39,10 +38,7 @@ and TypeLiteral =
     | TypeL of TypeL
     | ArrayL of TypeL * int option
 
-type Identifier =
-    | Variable of Variable
-    | Parameter of Parameter
-    | Function of FunctionDecl
+type Identifier = string
 
 and Scope =
     | Global
@@ -51,28 +47,21 @@ and Scope =
 and FunctionDecl =
     { Parameters: Parameter list
       ReturnType: TypeLiteral
-      Name: string }
+      Name: Identifier }
 
 
 and Parameter =
     { TypeDecl: TypeLiteral
-      Name: string
+      Name: Identifier
     //      Function: Function
      }
 
 and Variable =
     { TypeDecl: TypeLiteral
-      Name: string
+      Name: Identifier
     //      Scope: Scope
      }
 
-type Argument =
-    | Identifier of string
-    | Literal of Literal
-
-type FunctionCall =
-    { FuncName: string
-      Arguments: Argument list }
 
 type Expression =
     | Assignment of Identifier * Expression
@@ -87,9 +76,15 @@ and Statement =
     | Initialization of Initialization
     | Return of Expression
     | Block of Block
-    | Declaration of Identifier
+    | VarDeclaration of Variable
+    | FuncDeclaration of Function
+    | ParamDeclaration of Parameter
 
-and Initialization = Identifier * Literal
+and FunctionCall =
+    { FuncName: Identifier
+      Arguments: Expression list }
+
+and Initialization = Variable * Literal
 
 and Block = Statement list
 

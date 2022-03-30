@@ -7,7 +7,22 @@ open MiniC.Core.AST
 open MiniC.Core.Error
 
 let ws: Parser<unit, _> = skipMany (skipChar ' ')
+
+let whitespaced =
+    seq {
+        ' '
+        '\n'
+        '\r'
+        '\t'
+    }
+
+let wslr: Parser<unit, _> =
+    skipMany (skipAnyOf whitespaced) <?> "Whitespace characters"
+
 let ws1 = skipMany1 (skipChar ' ')
+
+let wslr1: Parser<unit, obj> =
+    skipMany1 (skipAnyOf whitespaced) <?> "Whitespace1 characters"
 
 let l str = pstring str
 
@@ -106,7 +121,7 @@ module Lexem =
             | "false" -> Result.Ok <| Literal.Boolean false
             | s -> Result.Error <| InvalidBooleanLiteral s
 
-    let identifierStringParser =
+    let identifierStringParser: Parser<Identifier, string> =
         charThenString letter (manyChars (letter <|> digit)) <??> "Identifier"
 
     type LexemParseResult =
@@ -147,20 +162,19 @@ module Syntax =
     let argsParser =
         sepBy1 argParser (ws >>. skipChar ',' >>. ws)
 
-    let varDeclarationParser =
+    let varDeclarationParser: Parser<Variable, string> =
         typeLexemParser .>> ws1 .>>.? identifierStringParser
-        |>> fun (t, i) -> Variable { Name = i; TypeDecl = t }
+        |>> fun (t, i) -> { Name = i; TypeDecl = t }
 
-    let checkTypes (var: Identifier) (literal: Literal) =
-        match literal.GetTypeLiteral(), var with
-        | t, Variable x when x.TypeDecl = t -> preturn (var, literal)
-        | t, Parameter x when x.TypeDecl = t -> preturn (var, literal)
-        | _ -> fail "Type mismatch"
+    //    let checkTypes (var: Identifier) (literal: Literal) =
+//        match literal.GetTypeLiteral(), var with
+//        | t, Variable x when x.TypeDecl = t -> preturn (var, literal)
+//        | t, Parameter x when x.TypeDecl = t -> preturn (var, literal)
+//        | _ -> fail "Type mismatch"
 
-    let initializationParser =
+    let initializationParser: Parser<Initialization, string> =
         varDeclarationParser .>> ws .>> skipChar '=' .>> ws
         .>>. literalLexemParser
-        >>= (fun (v, l) -> checkTypes v l)
 
     let curlyP p = between (skipChar '(') (skipChar ')') p
 
@@ -179,26 +193,30 @@ module Syntax =
         skipString "return" >>. ws1 >>. expressionStub .>> skipChar ';'
         |>> Statement.Return
 
-    let funcArgument =
-        (literalLexemParser |>> Argument.Literal)
-        <|> (identifierStringParser |>> Argument.Identifier)
+    //    let funcArgument =
+//        (literalLexemParser |>> Argument.Literal)
+//        <|> (identifierStringParser |>> Argument.Identifier)
 
     let funcCallParser =
-        identifierStringParser .>> ws
-        .>>.? curlyP (sepBy funcArgument (ws >>. skipChar ',' >>. ws))
+        identifierStringParser .>>? ws
+        .>>.? curlyP (sepBy expressionStub (ws >>. skipChar ',' >>. ws))
         |>> fun (f, args) -> { FuncName = f; Arguments = args }
+
 
     do
         expressionParserRef
-        := choice [ literalLexemParser |>> Expression.Literal
-                    funcCallParser |>> Expression.Call
-                    // identifierStringParser |>> Expression.Identifier
-                     ]
+        := choice [ attempt literalLexemParser |>> Expression.Literal
+                    attempt funcCallParser |>> Expression.Call
+                    identifierStringParser |>> Expression.Identifier ]
 
-    let expressionParser = expressionParserRef.Value
+    let expressionParser =
+        expressionParserRef.Value <?> "Expression"
 
     let statementStub, statementParserRef =
         createParserForwardedToRef ()
+
+    let emptyStatementParser =
+        skipChar ';' >>? many (skipChar ';') >>% Statement.Empty
 
     let blockParser: Parser<Block, _> =
         between (skipChar '{') (skipChar '}') (many1 statementStub)
@@ -210,7 +228,8 @@ module Syntax =
         expressionParser .>> ws .>> skipChar ';' |>> Statement.Expression
 
     let simpleVar =
-        varDeclarationParser .>> ws .>> skipChar ';' |>> Statement.Declaration
+        varDeclarationParser .>> ws .>> skipChar ';'
+        |>> Statement.VarDeclaration
 
     let simpleInit =
         initializationParser .>> ws .>> skipChar ';'
@@ -218,12 +237,14 @@ module Syntax =
 
     do
         statementParserRef
-        := between ws ws
-           <| choice [ attempt blockParser |>> Statement.Block
+        := between wslr wslr
+           <| choice [ attempt functionParser |>> Statement.FuncDeclaration
+                       attempt blockParser |>> Statement.Block
                        attempt returnStm
                        attempt simpleInit
                        attempt simpleVar
-                       simpleStatement ]
+                       attempt simpleStatement
+                       emptyStatementParser ]
 
     let statementParser = statementParserRef.Value
 
