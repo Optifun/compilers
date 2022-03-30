@@ -58,16 +58,6 @@ and Variable =
     //      Scope: Scope
      }
 
-let varD (name, typeL) : Variable = { TypeDecl = typeL; Name = name }
-
-let paramD (name, typeL) : Parameter = { TypeDecl = typeL; Name = name }
-
-let funcD (name, typeL, pars) : FunctionDecl =
-    { Name = name
-      ReturnType = typeL
-      Parameters = pars }
-
-
 type Expression =
     | Assignment of Identifier * Expression
     | Binary of BinaryOp * Expression * Expression
@@ -128,6 +118,17 @@ and BinaryOp =
         | Modulus -> "%"
 
     static member GetCases = GetCases<BinaryOp>
+
+let varD (name, typeL) : Variable = { TypeDecl = typeL; Name = name }
+
+let paramD (name, typeL) : Parameter = { TypeDecl = typeL; Name = name }
+
+let funcD (name, typeL, pars) : FunctionDecl =
+    { Name = name
+      ReturnType = typeL
+      Parameters = pars }
+
+let funcCall (name, args) : Expression = { FuncName = name; Arguments = args } |> Expression.Call
 
 let intLiteral value : Expression = Literal << IntNumber <| value
 let floatLiteral value : Expression = Literal << FloatNumber <| value

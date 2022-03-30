@@ -24,10 +24,10 @@ let ``Parse arguments definition`` () =
     let parser = argsParser
 
     let expect: Parameter list =
-        [ { Name = "a"; TypeDecl = IntL }
-          { Name = "b"; TypeDecl = BoolL }
-          { Name = "c"; TypeDecl = FloatL }
-          { Name = "d"; TypeDecl = IntL } ]
+        [ paramD ("a", IntL)
+          paramD ("b", BoolL)
+          paramD ("c", FloatL)
+          paramD ("d", IntL) ]
 
     runParser input parser
     |> toResult
@@ -39,8 +39,7 @@ let ``Parse one argument definition`` () =
     let input = "int a"
     let parser = argsParser
 
-    let expect: Parameter list =
-        [ { Name = "a"; TypeDecl = IntL } ]
+    let expect: Parameter list = [ paramD ("a", IntL) ]
 
     runParser input parser
     |> toResult
@@ -53,7 +52,7 @@ let ``Parse variable declaration`` () =
     let parser = simpleVar
 
     let expect: Statement =
-        Statement.VarDeclaration { Name = "a"; TypeDecl = IntL }
+        VarDeclaration <| varD ("a", IntL)
 
     runParser input parser
     |> toResult
@@ -66,7 +65,7 @@ let ``Parse variable initialisation`` () =
     let parser = simpleInit
 
     let expect: Statement =
-        Statement.Initialization({ Name = "a"; TypeDecl = IntL }, Literal << IntNumber <| 4)
+        Initialization(varD ("a", IntL), intLiteral 4)
 
     runParser input parser
     |> toResult
@@ -78,7 +77,7 @@ let ``Parse int literal as expression`` () =
     let input = "4"
     let parser = expressionParser
 
-    let expect: Expression = Literal << IntNumber <| 4
+    let expect: Expression = intLiteral 4
 
     runParser input parser
     |> toResult
@@ -90,8 +89,7 @@ let ``Parse float literal as expression`` () =
     let input = "0.5"
     let parser = expressionParser
 
-    let expect: Expression =
-        Literal.FloatNumber 0.5 |> Expression.Literal
+    let expect: Expression = floatLiteral 0.5
 
     runParser input parser
     |> toResult
@@ -103,13 +101,13 @@ let ``Parse function call with three args as expression`` () =
     let input = "func(a, 4, true);"
     let parser = expressionParser
 
-    let expect =
-        Expression.Call
+    let expect: Expression =
+        Call
             { FuncName = "func"
               Arguments =
-                [ Expression.Identifier "a"
-                  Expression.Literal <| Literal.IntNumber 4
-                  Expression.Literal <| Literal.Boolean true ] }
+                [ Identifier "a"
+                  intLiteral 4
+                  boolLiteral true ] }
 
     runParser input parser
     |> toResult
@@ -122,11 +120,7 @@ let ``Parse function call with two args without whitespaces as expression`` () =
     let parser = expressionParser
 
     let expect: Expression =
-        Expression.Call
-            { FuncName = "func"
-              Arguments =
-                [ Expression.Literal <| Literal.Boolean true
-                  Expression.Literal <| Literal.Boolean false ] }
+        funcCall ("func", [ boolLiteral true; boolLiteral false ])
 
     runParser input parser
     |> toResult
@@ -138,8 +132,7 @@ let ``Parse function call with zero args as expression`` () =
     let input = "func();"
     let parser = expressionParser
 
-    let expect =
-        Expression.Call { FuncName = "func"; Arguments = [] }
+    let expect: Expression = funcCall ("func", [])
 
     runParser input parser
     |> toResult
@@ -187,8 +180,8 @@ let ``Parse function declaration`` () =
         { Name = "function"
           ReturnType = VoidL
           Parameters =
-            [ { TypeDecl = IntL; Name = "a" }
-              { TypeDecl = BoolL; Name = "b" } ] }
+            [ paramD ("a", IntL)
+              paramD ("b", BoolL) ] }
 
     let expect =
         FuncDeclaration(
@@ -218,19 +211,11 @@ let ``Parse function call inside function body`` () =
         { Name = "function"
           ReturnType = VoidL
           Parameters =
-            [ { TypeDecl = IntL; Name = "a" }
-              { TypeDecl = BoolL; Name = "b" } ] }
+            [ paramD ("a", IntL)
+              paramD ("b", BoolL) ] }
 
     let expect =
-        FuncDeclaration(
-            func,
-            [ Statement.Return
-              <| Expression.Call
-                  { FuncName = "function"
-                    Arguments =
-                      [ Expression.Literal <| Literal.IntNumber 24
-                        Expression.Literal <| Literal.Boolean true ] } ]
-        )
+        FuncDeclaration(func, [ Return <| funcCall ("function", [ intLiteral 24; boolLiteral true ]) ])
 
     runParser input parser
     |> toResult
@@ -259,13 +244,13 @@ let ``Parse nested statement blocks`` () =
         { Name = "function"
           ReturnType = VoidL
           Parameters =
-            [ { TypeDecl = IntL; Name = "a" }
-              { TypeDecl = BoolL; Name = "b" } ] }
+            [ paramD ("a", IntL)
+              paramD ("b", BoolL) ] }
 
     let func2: FunctionDecl =
         { Name = "example"
           ReturnType = IntL
-          Parameters = [ { TypeDecl = BoolL; Name = "value" } ] }
+          Parameters = [ paramD ("value", BoolL) ] }
 
     let expect =
         FuncDeclaration(
@@ -273,11 +258,7 @@ let ``Parse nested statement blocks`` () =
             [ FuncDeclaration(func2, [ Return << Literal << IntNumber <| 23 ])
               Block [ Initialization(
                           { TypeDecl = IntL; Name = "c" },
-                          Call
-                              { FuncName = "example"
-                                Arguments =
-                                  [ Literal <| IntNumber 24
-                                    Literal <| Boolean true ] }
+                          funcCall ("example", [ intLiteral 24; boolLiteral true ])
                       ) ] ]
         )
 

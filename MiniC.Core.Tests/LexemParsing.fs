@@ -78,14 +78,14 @@ let ``Keyword lexem parser parses all delimiters`` () =
     let parser = sepEndBy1 keywordLexemCombinator <| ws
 
     let expected =
-        [ Keyword.Delimiter ";"
-          Keyword.Delimiter "."
-          Keyword.Delimiter "("
-          Keyword.Delimiter "{"
-          Keyword.Delimiter "["
-          Keyword.Delimiter "]"
-          Keyword.Delimiter "}"
-          Keyword.Delimiter ")" ]
+        [ Delimiter ";"
+          Delimiter "."
+          Delimiter "("
+          Delimiter "{"
+          Delimiter "["
+          Delimiter "]"
+          Delimiter "}"
+          Delimiter ")" ]
         |> List.map Keyword
 
     runParser input parser
@@ -122,10 +122,10 @@ let ``Literal parser parses boolean literals`` () =
     let parser = sepEndBy1 literalLexemCombinator <| ws
 
     let expected =
-        [ Literal.Boolean true
-          Literal.Boolean false
-          Literal.Boolean false
-          Literal.Boolean true ]
+        [ Boolean true
+          Boolean false
+          Boolean false
+          Boolean true ]
         |> List.map Literal
 
     runParser input parser
@@ -137,12 +137,12 @@ let ``Literal parser parses integer literals`` () =
     let parser = sepEndBy1 literalLexemCombinator <| ws
 
     let expected =
-        [ Literal.IntNumber 1
-          Literal.IntNumber 3
-          Literal.IntNumber -5
-          Literal.IntNumber 99999
-          Literal.IntNumber -12345
-          Literal.IntNumber 67890 ]
+        [ IntNumber 1
+          IntNumber 3
+          IntNumber -5
+          IntNumber 99999
+          IntNumber -12345
+          IntNumber 67890 ]
         |> List.map Literal
 
     runParser input parser
@@ -155,11 +155,11 @@ let ``Literal parser parses float literals`` () =
     let parser = sepEndBy1 literalLexemCombinator <| ws
 
     let expected =
-        [ Literal.FloatNumber 1.
-          Literal.FloatNumber 0.
-          Literal.FloatNumber -6.6
-          Literal.FloatNumber 0.12345
-          Literal.FloatNumber 6789.0 ]
+        [ FloatNumber 1.
+          FloatNumber 0.
+          FloatNumber -6.6
+          FloatNumber 0.12345
+          FloatNumber 6789.0 ]
         |> List.map Literal
 
     runParser input parser
