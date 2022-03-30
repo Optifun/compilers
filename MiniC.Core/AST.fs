@@ -16,27 +16,23 @@ type Literal =
     member x.GetTypeLiteral () =
         x
         |> function
-            | IntNumber _ -> IntL |> TypeLiteral.TypeL
-            | FloatNumber _ -> FloatL |> TypeLiteral.TypeL
-            | _ -> BoolL |> TypeLiteral.TypeL
+            | IntNumber _ -> IntL
+            | FloatNumber _ -> FloatL
+            | _ -> BoolL
 
-and TypeL =
+and TypeLiteral =
     | IntL
     | FloatL
     | BoolL
     | VoidL
+    | ArrayL of TypeLiteral * int option
     override x.ToString () =
         match x with
         | IntL -> "int"
         | FloatL -> "float"
         | BoolL -> "bool"
         | VoidL -> "void"
-
-    static member GetCases = GetCases<TypeL>
-
-and TypeLiteral =
-    | TypeL of TypeL
-    | ArrayL of TypeL * int option
+        | ArrayL (t, n) -> $"{t}[{n}]"
 
 type Identifier = string
 
@@ -61,6 +57,15 @@ and Variable =
       Name: Identifier
     //      Scope: Scope
      }
+
+let varD (name, typeL) : Variable = { TypeDecl = typeL; Name = name }
+
+let paramD (name, typeL) : Parameter = { TypeDecl = typeL; Name = name }
+
+let funcD (name, typeL, pars) : FunctionDecl =
+    { Name = name
+      ReturnType = typeL
+      Parameters = pars }
 
 
 type Expression =
@@ -123,6 +128,10 @@ and BinaryOp =
         | Modulus -> "%"
 
     static member GetCases = GetCases<BinaryOp>
+
+let intLiteral value : Expression = Literal << IntNumber <| value
+let floatLiteral value : Expression = Literal << FloatNumber <| value
+let boolLiteral value : Expression = Literal << Boolean <| value
 
 type Keyword =
     | IF

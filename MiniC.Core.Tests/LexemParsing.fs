@@ -21,26 +21,26 @@ let mapParserResult<'a, 'b> (f: 'a -> unit) (value: ParserResult<'a, 'b>) : unit
 [<Test>]
 let ``Parse 'bool' literal`` () =
     let input = "bool"
-    let parser = typeLexemParser TypeL.BoolL
+    let parser = typeLexemParser BoolL
 
     runParser input parser
-    |> mapParserResult (fun v -> v |> should equal TypeL.BoolL)
+    |> mapParserResult (fun v -> v |> should equal BoolL)
 
 [<Test>]
 let ``Parse 'void' literal`` () =
     let input = "void"
-    let parser = typeLexemParser TypeL.VoidL
+    let parser = typeLexemParser VoidL
 
     runParser input parser
-    |> mapParserResult (fun v -> v |> should equal TypeL.VoidL)
+    |> mapParserResult (fun v -> v |> should equal VoidL)
 
 [<Test>]
 let ``Parse 'int' literal`` () =
     let input = "int"
-    let parser = typeLexemParser TypeL.IntL
+    let parser = typeLexemParser IntL
 
     runParser input parser
-    |> mapParserResult (fun v -> v |> should equal TypeL.IntL)
+    |> mapParserResult (fun v -> v |> should equal IntL)
 
 
 [<Test>]
@@ -49,11 +49,7 @@ let ``Type lexem parser parses all type literals`` () =
     let parser = sepEndBy1 typeLexemCombinator <| ws
 
     let expected =
-        [ TypeL.IntL
-          TypeL.VoidL
-          TypeL.BoolL
-          TypeL.FloatL ]
-        |> List.map TypeLexem
+        [ IntL; VoidL; BoolL; FloatL ] |> List.map TypeLexem
 
     runParser input parser
     |> mapParserResult (fun v -> v |> should equal expected)

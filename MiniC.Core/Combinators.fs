@@ -64,15 +64,15 @@ let mapResultToReply msg res =
 module Lexem =
 
 
-    let typeLexemParser (t: TypeL) : Parser<TypeL, _> = genericParser t <?> "Type lexem"
+    let typeLexemParser (t: TypeLiteral) : Parser<TypeLiteral, _> = genericParser t <?> "Type lexem"
     let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, _> = genericParser op <?> "Binary operator"
 
 
     let operatorLexems: Parser<BinaryOp, _> list =
         BinaryOp.GetCases() |> List.map operatorLexemParser
 
-    let typeLexems: Parser<TypeL, _> list =
-        TypeL.GetCases() |> List.map typeLexemParser
+    let typeLexems: Parser<TypeLiteral, _> list =
+        [ IntL; BoolL; FloatL; VoidL ] |> List.map typeLexemParser
 
     let delimiterLexems: Parser<Keyword, string> list =
         [ ";"
@@ -127,7 +127,7 @@ module Lexem =
     type LexemParseResult =
         | Literal of Literal
         | Keyword of Keyword
-        | TypeLexem of TypeL
+        | TypeLexem of TypeLiteral
         | BinaryOperator of BinaryOp
         | Identifier of string
 
@@ -135,7 +135,7 @@ module Lexem =
             match value with
             | :? AST.Literal as v -> LexemParseResult.Literal v
             | :? AST.Keyword as v -> LexemParseResult.Keyword v
-            | :? AST.TypeL as v -> LexemParseResult.TypeLexem v
+            | :? AST.TypeLiteral as v -> LexemParseResult.TypeLexem v
             | :? AST.BinaryOp as v -> LexemParseResult.BinaryOperator v
             | :? string as v -> LexemParseResult.Identifier v
             | _ -> failwith "can't cast value to LexemParseResult"
@@ -144,8 +144,7 @@ module Lexem =
 
 
 module Syntax =
-    let typeLexemParser =
-        choice typeLexems |>> TypeLiteral.TypeL
+    let typeLexemParser = choice typeLexems
 
     let operatorLexemCombinator = choice operatorLexems
 

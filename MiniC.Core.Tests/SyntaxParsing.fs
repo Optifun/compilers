@@ -3,7 +3,6 @@
 open FSharpPlus
 open FSharpPlus.Data
 open MiniC.Core.AST
-open MiniC.Core.AST
 open NUnit.Framework
 open FParsec
 open FsUnit
@@ -25,10 +24,10 @@ let ``Parse arguments definition`` () =
     let parser = argsParser
 
     let expect: Parameter list =
-        [ { Name = "a"; TypeDecl = TypeL IntL }
-          { Name = "b"; TypeDecl = TypeL BoolL }
-          { Name = "c"; TypeDecl = TypeL FloatL }
-          { Name = "d"; TypeDecl = TypeL IntL } ]
+        [ { Name = "a"; TypeDecl = IntL }
+          { Name = "b"; TypeDecl = BoolL }
+          { Name = "c"; TypeDecl = FloatL }
+          { Name = "d"; TypeDecl = IntL } ]
 
     runParser input parser
     |> toResult
@@ -41,8 +40,7 @@ let ``Parse one argument definition`` () =
     let parser = argsParser
 
     let expect: Parameter list =
-        [ { Name = "a"
-            TypeDecl = TypeLiteral.TypeL IntL } ]
+        [ { Name = "a"; TypeDecl = IntL } ]
 
     runParser input parser
     |> toResult
@@ -55,9 +53,7 @@ let ``Parse variable declaration`` () =
     let parser = simpleVar
 
     let expect: Statement =
-        Statement.VarDeclaration
-            { Name = "a"
-              TypeDecl = TypeLiteral.TypeL IntL }
+        Statement.VarDeclaration { Name = "a"; TypeDecl = IntL }
 
     runParser input parser
     |> toResult
@@ -70,11 +66,7 @@ let ``Parse variable initialisation`` () =
     let parser = simpleInit
 
     let expect: Statement =
-        Statement.Initialization(
-            { Name = "a"
-              TypeDecl = TypeLiteral.TypeL IntL },
-            Literal << IntNumber <| 4
-        )
+        Statement.Initialization({ Name = "a"; TypeDecl = IntL }, Literal << IntNumber <| 4)
 
     runParser input parser
     |> toResult
@@ -193,12 +185,10 @@ let ``Parse function declaration`` () =
 
     let func: FunctionDecl =
         { Name = "function"
-          ReturnType = TypeLiteral.TypeL TypeL.VoidL
+          ReturnType = VoidL
           Parameters =
-            [ { TypeDecl = TypeLiteral.TypeL TypeL.IntL
-                Name = "a" }
-              { TypeDecl = TypeLiteral.TypeL TypeL.BoolL
-                Name = "b" } ] }
+            [ { TypeDecl = IntL; Name = "a" }
+              { TypeDecl = BoolL; Name = "b" } ] }
 
     let expect =
         FuncDeclaration(
@@ -226,12 +216,10 @@ let ``Parse function call inside function body`` () =
 
     let func: FunctionDecl =
         { Name = "function"
-          ReturnType = TypeLiteral.TypeL TypeL.VoidL
+          ReturnType = VoidL
           Parameters =
-            [ { TypeDecl = TypeLiteral.TypeL TypeL.IntL
-                Name = "a" }
-              { TypeDecl = TypeLiteral.TypeL TypeL.BoolL
-                Name = "b" } ] }
+            [ { TypeDecl = IntL; Name = "a" }
+              { TypeDecl = BoolL; Name = "b" } ] }
 
     let expect =
         FuncDeclaration(
@@ -269,24 +257,22 @@ let ``Parse nested statement blocks`` () =
 
     let func1: FunctionDecl =
         { Name = "function"
-          ReturnType = TypeL VoidL
+          ReturnType = VoidL
           Parameters =
-            [ { TypeDecl = TypeL IntL; Name = "a" }
-              { TypeDecl = TypeL BoolL; Name = "b" } ] }
+            [ { TypeDecl = IntL; Name = "a" }
+              { TypeDecl = BoolL; Name = "b" } ] }
 
     let func2: FunctionDecl =
         { Name = "example"
-          ReturnType = TypeL IntL
-          Parameters =
-            [ { TypeDecl = TypeL BoolL
-                Name = "value" } ] }
+          ReturnType = IntL
+          Parameters = [ { TypeDecl = BoolL; Name = "value" } ] }
 
     let expect =
         FuncDeclaration(
             func1,
             [ FuncDeclaration(func2, [ Return << Literal << IntNumber <| 23 ])
               Block [ Initialization(
-                          { TypeDecl = TypeL IntL; Name = "c" },
+                          { TypeDecl = IntL; Name = "c" },
                           Call
                               { FuncName = "example"
                                 Arguments =
@@ -313,14 +299,14 @@ let ``Parse declarations as program`` () =
 
     let func: FunctionDecl =
         { Name = "function"
-          ReturnType = TypeL VoidL
+          ReturnType = VoidL
           Parameters =
-            [ { TypeDecl = TypeL IntL; Name = "a" }
-              { TypeDecl = TypeL BoolL; Name = "b" } ] }
+            [ { TypeDecl = IntL; Name = "a" }
+              { TypeDecl = BoolL; Name = "b" } ] }
 
     let expect =
-        [ VarDeclaration { TypeDecl = TypeL IntL; Name = "abc" }
-          Initialization({ TypeDecl = TypeL IntL; Name = "def" }, Literal << IntNumber <| 4)
+        [ VarDeclaration <| varD ("abc", IntL)
+          Initialization(varD ("def", IntL), intLiteral 4)
           FuncDeclaration(func, [ Statement.Empty ]) ]
 
     runParser input parser
