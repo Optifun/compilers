@@ -1,6 +1,8 @@
 ﻿module MiniC.Core.Tests.SyntaxParsing
 
 open FSharpPlus
+open FSharpPlus.Data
+open MiniC.Core.AST
 open MiniC.Core.AST
 open NUnit.Framework
 open FParsec
@@ -150,8 +152,31 @@ let ``Parse function call with zero args as expression`` () =
     let input = "func();"
     let parser = expressionParser
 
-    let expect: Expression =
-        { FuncName = "func"; Arguments = [] } |> Expression.Call
+    let expect =
+        Expression.Call { FuncName = "func"; Arguments = [] }
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
+
+[<Test>]
+let ``Parse statement block`` () =
+    let input =
+        "
+        {
+        ;
+        ;
+        ;
+        }
+        "
+
+    let parser = statementParser
+
+    let expect =
+        Statement.Block [ Statement.Empty
+                          Statement.Empty
+                          Statement.Empty ]
 
     runParser input parser
     |> toResult

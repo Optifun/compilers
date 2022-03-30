@@ -75,7 +75,6 @@ type FunctionCall =
       Arguments: Argument list }
 
 type Expression =
-    | Empty
     | Assignment of Identifier * Expression
     | Binary of BinaryOp * Expression * Expression
     | Literal of Literal
@@ -83,6 +82,7 @@ type Expression =
     | Call of FunctionCall
 
 and Statement =
+    | Empty
     | Expression of Expression
     | Initialization of Initialization
     | Return of Expression
