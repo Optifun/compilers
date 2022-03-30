@@ -217,3 +217,39 @@ let ``Parse function declaration`` () =
     |> toResult
     |> Result.get
     |> should equal expect
+
+[<Test>]
+let ``Parse function call inside function body`` () =
+    let input =
+        "void function(int a, bool b)
+        {
+        return function(24, true);
+        }
+        "
+
+    let parser = statementParser
+
+    let func: FunctionDecl =
+        { Name = "function"
+          ReturnType = TypeLiteral.TypeL TypeL.VoidL
+          Parameters =
+            [ { TypeDecl = TypeLiteral.TypeL TypeL.IntL
+                Name = "a" }
+              { TypeDecl = TypeLiteral.TypeL TypeL.BoolL
+                Name = "b" } ] }
+
+    let expect =
+        FuncDeclaration(
+            func,
+            [ Statement.Return
+              <| Expression.Call
+                  { FuncName = "function"
+                    Arguments =
+                      [ Expression.Literal <| Literal.IntNumber 24
+                        Expression.Literal <| Literal.Boolean true ] } ]
+        )
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
