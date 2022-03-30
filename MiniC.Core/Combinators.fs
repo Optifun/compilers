@@ -222,7 +222,7 @@ module Syntax =
         between (skipChar '{') (skipChar '}') (many1 statementStub)
 
     let functionParser: Parser<Function, _> =
-        funcDeclarationParser .>>. between ws ws blockParser
+        funcDeclarationParser .>>. between wslr wslr blockParser
 
     let simpleStatement =
         expressionParser .>> ws .>> skipChar ';' |>> Statement.Expression
