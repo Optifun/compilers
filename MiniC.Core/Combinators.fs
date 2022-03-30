@@ -162,20 +162,6 @@ module Syntax =
     let argsParser =
         sepBy1 argParser (ws >>. skipChar ',' >>. ws)
 
-    let varDeclarationParser: Parser<Variable, string> =
-        typeLexemParser .>> ws1 .>>.? identifierStringParser
-        |>> fun (t, i) -> { Name = i; TypeDecl = t }
-
-    //    let checkTypes (var: Identifier) (literal: Literal) =
-//        match literal.GetTypeLiteral(), var with
-//        | t, Variable x when x.TypeDecl = t -> preturn (var, literal)
-//        | t, Parameter x when x.TypeDecl = t -> preturn (var, literal)
-//        | _ -> fail "Type mismatch"
-
-    let initializationParser: Parser<Initialization, string> =
-        varDeclarationParser .>> ws .>> skipChar '=' .>> ws
-        .>>. literalLexemParser
-
     let curlyP p = between (skipChar '(') (skipChar ')') p
 
     let funcDeclarationParser =
@@ -188,6 +174,14 @@ module Syntax =
 
     let expressionStub, expressionParserRef =
         createParserForwardedToRef ()
+
+    let varDeclarationParser: Parser<Variable, string> =
+        typeLexemParser .>> ws1 .>>.? identifierStringParser
+        |>> fun (t, i) -> { Name = i; TypeDecl = t }
+
+    let initializationParser: Parser<Initialization, string> =
+        varDeclarationParser .>> ws .>> skipChar '=' .>> ws
+        .>>. expressionStub
 
     let returnStm =
         skipString "return" >>. ws1 >>. expressionStub .>> skipChar ';'

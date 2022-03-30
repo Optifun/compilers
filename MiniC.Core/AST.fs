@@ -84,7 +84,7 @@ and FunctionCall =
     { FuncName: Identifier
       Arguments: Expression list }
 
-and Initialization = Variable * Literal
+and Initialization = Variable * Expression
 
 and Block = Statement list
 

@@ -25,14 +25,10 @@ let ``Parse arguments definition`` () =
     let parser = argsParser
 
     let expect: Parameter list =
-        [ { Name = "a"
-            TypeDecl = TypeLiteral.TypeL IntL }
-          { Name = "b"
-            TypeDecl = TypeLiteral.TypeL BoolL }
-          { Name = "c"
-            TypeDecl = TypeLiteral.TypeL FloatL }
-          { Name = "d"
-            TypeDecl = TypeLiteral.TypeL IntL } ]
+        [ { Name = "a"; TypeDecl = TypeL IntL }
+          { Name = "b"; TypeDecl = TypeL BoolL }
+          { Name = "c"; TypeDecl = TypeL FloatL }
+          { Name = "d"; TypeDecl = TypeL IntL } ]
 
     runParser input parser
     |> toResult
@@ -77,7 +73,7 @@ let ``Parse variable initialisation`` () =
         Statement.Initialization(
             { Name = "a"
               TypeDecl = TypeLiteral.TypeL IntL },
-            Literal.IntNumber 4
+            Literal << IntNumber <| 4
         )
 
     runParser input parser
@@ -90,8 +86,7 @@ let ``Parse int literal as expression`` () =
     let input = "4"
     let parser = expressionParser
 
-    let expect: Expression =
-        Literal.IntNumber 4 |> Expression.Literal
+    let expect: Expression = Literal << IntNumber <| 4
 
     runParser input parser
     |> toResult
