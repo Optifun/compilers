@@ -139,6 +139,20 @@ let ``Parse function call with zero args as expression`` () =
     |> Result.get
     |> should equal expect
 
+
+[<Test>]
+let ``Parse empty statement block`` () =
+    let input = "{}"
+
+    let parser = statementParser
+
+    let expect = Statement.Block []
+
+    runParser input parser
+    |> toResult
+    |> Result.get
+    |> should equal expect
+
 [<Test>]
 let ``Parse statement block`` () =
     let input =

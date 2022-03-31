@@ -212,7 +212,7 @@ module Syntax =
         skipChar ';' >>? many (skipChar ';') >>% Statement.Empty
 
     let blockParser: Parser<Block, _> =
-        between (skipChar '{') (skipChar '}') (many1 statementStub)
+        between (skipChar '{') (skipChar '}') (many statementStub <|> (wslr >>% []))
 
     let functionParser: Parser<Function, _> =
         funcDeclarationParser .>>. between wslr wslr blockParser
