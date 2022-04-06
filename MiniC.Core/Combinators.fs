@@ -11,18 +11,18 @@ let ws: Parser<unit, _> = skipMany (skipChar ' ')
 let whitespaced =
     seq {
         ' '
-        '\n'
-        '\r'
         '\t'
     }
 
 let wslr: Parser<unit, _> =
-    skipMany (skipAnyOf whitespaced) <?> "Whitespace characters"
+    skipMany (skipAnyOf whitespaced <|> skipNewline)
+    <??> "Whitespace characters"
 
 let ws1 = skipMany1 (skipChar ' ')
 
 let wslr1: Parser<unit, obj> =
-    skipMany1 (skipAnyOf whitespaced) <?> "Whitespace1 characters"
+    skipMany1 (skipAnyOf whitespaced <|> skipNewline)
+    <??> "Whitespace1 characters"
 
 let l str = pstring str
 
@@ -64,8 +64,8 @@ let mapResultToReply msg res =
 module Lexem =
 
 
-    let typeLexemParser (t: TypeLiteral) : Parser<TypeLiteral, _> = genericParser t <?> "Type lexem"
-    let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, _> = genericParser op <?> "Binary operator"
+    let typeLexemParser (t: TypeLiteral) : Parser<TypeLiteral, _> = genericParser t <??> "Type lexem"
+    let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, _> = genericParser op <??> "Binary operator"
 
 
     let operatorLexems: Parser<BinaryOp, _> list =
@@ -153,6 +153,7 @@ module Syntax =
                  attempt integerLiteral
                  floatLiteral ]
         >>= mapResultToReply "Incorrect literal"
+        <??> "Literal"
 
     let argParser: Parser<Parameter, _> =
         typeLexemParser .>> ws1 .>>. identifierStringParser
@@ -203,19 +204,22 @@ module Syntax =
                     identifierStringParser |>> Expression.Identifier ]
 
     let expressionParser =
-        expressionParserRef.Value <?> "Expression"
+        expressionParserRef.Value <??> "Expression"
 
     let statementStub, statementParserRef =
         createParserForwardedToRef ()
 
     let emptyStatementParser =
-        skipChar ';' >>? many (skipChar ';') >>% Statement.Empty
+        skipChar ';' >>% Statement.Empty
+
+    let manyStatements =
+        many <| between wslr wslr statementStub
 
     let blockParser: Parser<Block, _> =
-        between (skipChar '{') (skipChar '}') (many statementStub <|> (wslr >>% []))
+        between (skipChar '{') (skipChar '}') (manyStatements <|> (wslr >>% []))
 
     let functionParser: Parser<Function, _> =
-        funcDeclarationParser .>>. between wslr wslr blockParser
+        funcDeclarationParser .>> wslr .>>. blockParser
 
     let simpleStatement =
         expressionParser .>> ws .>> skipChar ';' |>> Statement.Expression
@@ -230,15 +234,14 @@ module Syntax =
 
     do
         statementParserRef
-        := between wslr wslr
-           <| choice [ attempt functionParser |>> Statement.FuncDeclaration
-                       attempt blockParser |>> Statement.Block
-                       attempt returnStm
-                       attempt simpleInit
-                       attempt simpleVar
-                       attempt simpleStatement
-                       emptyStatementParser ]
+        := choice [ attempt functionParser |>> Statement.FuncDeclaration
+                    attempt blockParser |>> Statement.Block
+                    attempt returnStm
+                    attempt simpleInit
+                    attempt simpleVar
+                    attempt simpleStatement
+                    emptyStatementParser ]
 
     let statementParser = statementParserRef.Value
 
-    let programParser = many statementParser
+    let programParser = manyStatements .>> eof

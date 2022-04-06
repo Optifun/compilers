@@ -156,8 +156,7 @@ let ``Parse empty statement block`` () =
 [<Test>]
 let ``Parse statement block`` () =
     let input =
-        "
-        {
+        "{
         ;
         ;
         ;
