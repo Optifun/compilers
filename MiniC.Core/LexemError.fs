@@ -1,6 +1,6 @@
-﻿module MiniC.Core.Error
+﻿namespace MiniC.Core.Error
 
-type ErrorMessage =
+type LexemError =
     | InvalidIntegerLiteral of string
     | InvalidFloatLiteral of string
     | InvalidBooleanLiteral of string

@@ -32,22 +32,22 @@ let lws str = l str .>> ws1
 let genericParser<'T when 'T :> obj> (o: 'T) = l (o.ToString()) >>% o
 let genericParserWs<'T when 'T :> obj> (o: 'T) = lws (o.ToString()) >>% o
 
-let parseInteger (sign: char option, str: string) : Result<int, ErrorMessage> =
+let parseInteger (sign: char option, str: string) : Result<int, LexemError> =
     let mutable value = -1
 
     match Int32.TryParse(str, &value), sign with
     | true, Some '-' -> Result.Ok -value
     | true, _ -> Result.Ok value
-    | false, _ -> Result.Error <| ErrorMessage.InvalidIntegerLiteral str
+    | false, _ -> Result.Error <| LexemError.InvalidIntegerLiteral str
 
 
-let parseFloat (sign: char option, fstring: string) : Result<float, ErrorMessage> =
+let parseFloat (sign: char option, fstring: string) : Result<float, LexemError> =
     let parseFloat = Result.protect float
 
     match parseFloat fstring, sign with
     | Result.Ok value, Some '-' -> Result.Ok -value
     | Result.Ok value, _ -> Result.Ok value
-    | Result.Error _, _ -> Result.Error <| ErrorMessage.InvalidFloatLiteral fstring
+    | Result.Error _, _ -> Result.Error <| LexemError.InvalidFloatLiteral fstring
 
 
 let charThenString (chr: Parser<char, _>) (str: Parser<string, _>) =
@@ -114,7 +114,7 @@ module Lexem =
         <??> "Float"
         |>> (parseFloat >> Result.map Literal.FloatNumber)
 
-    let booleanLiteral: Parser<Result<Literal, ErrorMessage>, string> =
+    let booleanLiteral: Parser<Result<Literal, LexemError>, string> =
         (pstring "true" <|> pstring "false") <??> "Boolean"
         |>> function
             | "true" -> Result.Ok <| Literal.Boolean true
