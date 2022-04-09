@@ -36,10 +36,6 @@ and TypeLiteral =
 
 type Identifier = string
 
-and Scope =
-    | Global
-    | Function of FunctionDecl
-
 and FunctionDecl =
     { Parameters: Parameter list
       ReturnType: TypeLiteral
