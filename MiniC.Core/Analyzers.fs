@@ -6,6 +6,7 @@ open System.Collections.Immutable
 open FSharpPlus
 open FParsec
 open FSharpPlus
+open FSharpPlus.Control
 open MiniC.Core.Combinators
 open MiniC.Core.AST
 open MiniC.Core.Error
@@ -20,20 +21,56 @@ and CompoundContext = Scope * Context
 and Context =
     { Functions: ImmutableDictionary<Identifier, Function>
       Variables: ImmutableDictionary<Identifier, Variable> }
-    member x.registerVariable var = { x with Variables = x.Variables.Add <| (var.Name, var) }
 
-    member x.registerFunction (decl: FunctionDecl, block) =
-        { x with Functions = x.Functions.Add <| (decl.Name, (decl, block)) }
+[<AutoOpen>]
+module Context =
+    let registerVariable context var =
+        { context with Variables = context.Variables.Add <| (var.Name, var) }
 
-    member x.hasFunction (id: Identifier) = Seq.contains id x.Functions.Keys
-    member x.hasVariable (id: Identifier) = Seq.contains id x.Variables.Keys
-    member x.hasIdentifier (id: Identifier) = x.hasFunction id || x.hasVariable id
+    let registerFunction context (decl: FunctionDecl, block) =
+        { context with Functions = context.Functions.Add <| (decl.Name, (decl, block)) }
 
-    member x.getFunction =
-        Result.protect <| fun (id: Identifier) -> x.Functions.[id]
+    let getFunction context =
+        Result.protect <| fun (id: Identifier) -> context.Functions.[id]
 
-    member x.getVariable =
-        Result.protect <| fun (id: Identifier) -> x.Variables.[id]
+    let getVariable context =
+        Result.protect <| fun (id: Identifier) -> context.Variables.[id]
+
+    let hasFunction context (id: Identifier) = Seq.contains id context.Functions.Keys
+
+    let hasVariable context (id: Identifier) = Seq.contains id context.Variables.Keys
+    let hasIdentifier context (id: Identifier) = hasFunction context id || hasVariable context id
+
+type Context with
+    member x.registerVariable (var: Variable) = registerVariable x var
+    member x.registerFunction (func: Function) = registerFunction x func
+    member x.getFunction (id: Identifier) = getFunction x id
+    member x.getVariable (id: Identifier) = getFunction x id
+    member x.hasFunction (id: Identifier) = hasFunction x id
+    member x.hasVariable (id: Identifier) = hasVariable x id
+    member x.hasIdentifier (id: Identifier) = hasIdentifier x id
+
+
+let rec visitScope (scope: Scope) (visitor: Context -> Identifier -> Result<'elem, exn>) id : Result<'elem, exn> =
+    scope
+    |> function
+        | Global context -> visitor context id
+        | Function (parent, current) ->
+            visitor current id
+            |> function
+                | Result.Ok elem -> Result.Ok elem
+                | Result.Error _ -> visitScope parent visitor id
+
+type Scope with
+    member x.getFunction (id: Identifier) = visitScope x getFunction id
+
+    member x.getVariable (id: Identifier) = visitScope x getVariable id
+
+    member x.registerVariable (var: Variable) =
+        x
+        |> function
+            | Global c -> Global <| c.registerVariable var
+            | Function (p, c) -> Function(p, c.registerVariable var)
 
 
 let funcRetType (func: Function) =
@@ -42,7 +79,7 @@ let funcRetType (func: Function) =
 
 
 
-let initializationAnalyzer (node: Initialization) (context: Context) : Context * Result<Initialization, SemanticError> =
+let initializationAnalyzer (node: Initialization) (context: Scope) : Scope * Result<Initialization, SemanticError> =
     let var, value = node
 
     let newContext = context.registerVariable var
@@ -57,7 +94,7 @@ let initializationAnalyzer (node: Initialization) (context: Context) : Context *
         newContext, Result.Ok node
     | _ -> context, Result.Error <| TypeMismatch(var, value)
 
-let funcCallAnalyzer (node: FunctionCall) (context: Context) : Context * Result<FunctionCall, SemanticError> =
+let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<FunctionCall, SemanticError> =
 
     let checkParamTypes (param: Parameter, arg: Expression) =
         match param.TypeDecl, arg with
