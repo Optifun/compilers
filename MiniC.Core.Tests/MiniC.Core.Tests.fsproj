@@ -11,6 +11,7 @@
     <ItemGroup>
         <Compile Include="LexemParsing.fs" />
         <Compile Include="SyntaxParsing.fs" />
+        <Compile Include="SemanticAnalysis.fs" />
     </ItemGroup>
 
     <ItemGroup>
