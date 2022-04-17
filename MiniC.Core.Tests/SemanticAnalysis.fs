@@ -45,15 +45,14 @@ let ``Initialisation type mismatch`` () =
         int abc = false;
         "
 
-    let _statements =
-        [ Initialization(varD ("abc", IntL), boolLiteral false) ]
+    let _statements: Statement list = []
 
     let _scope = constructContext [] [] |> Global
 
     let _errors: SemanticError list =
         [ TypeMismatch({ Name = "abc"; TypeDecl = IntL }, boolLiteral false) ]
 
-    let (statements, scope, errors) =
+    let statements, scope, errors =
         runParser input programParser
         |> toResult
         |> Result.map programAnalyzer
@@ -152,6 +151,44 @@ let ``Function calling with correct parameters`` () =
         constructContext [ variable ] [ func ] |> Global
 
     let _errors: SemanticError list = []
+
+    let statements, scope, errors =
+        runParser input programParser
+        |> toResult
+        |> Result.map programAnalyzer
+        |> Result.get
+
+    statements |> should equal _statements
+    errors |> should equal _errors
+    scope |> should equal _scope
+
+[<Test>]
+let ``Calling function with incorrect parameters count`` () =
+    let input =
+        "
+        int f(int n) {return 42;}
+        int abc = f(2, 4);
+        "
+
+    let funcCall =
+        { FuncName = "f"
+          Arguments = [ intLiteral 2; intLiteral 4 ] }
+
+    let functionDecl =
+        funcD ("f", IntL, [ paramD ("n", IntL) ])
+
+    let func =
+        functionDecl, [ Statement.Return <| intLiteral 42 ]
+
+    let variable = varD ("abc", IntL)
+
+    let _statements: Statement list =
+        [ FuncDeclaration func ]
+
+    let _scope = constructContext [] [ func ] |> Global
+
+    let _errors: SemanticError list =
+        [ FunctionCallWrongParameters(functionDecl, funcCall) ]
 
     let statements, scope, errors =
         runParser input programParser
