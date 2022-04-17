@@ -12,6 +12,11 @@ open MiniC.Core.AST
 open MiniC.Core.Error
 
 
+let isOk result =
+    match result with
+    | Result.Ok _ -> true
+    | _ -> false
+
 type Scope =
     | Global of Context
     | Function of CompoundContext
@@ -71,6 +76,12 @@ type Scope with
         |> function
             | Global c -> Global <| c.registerVariable var
             | Function (p, c) -> Function(p, c.registerVariable var)
+
+    member x.registerFunction (func: Function) =
+        x
+        |> function
+            | Global c -> Global <| c.registerFunction func
+            | Function (p, c) -> Function(p, c.registerFunction func)
 
 
 let funcRetType (func: Function) =
@@ -143,6 +154,18 @@ let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<Func
 
     context, response
 
+let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError> =
+    let decl, _ = func
+
+    if (isOk <| context.getVariable decl.Name
+        || isOk <| context.getFunction decl.Name) then
+        context,
+        Result.Error
+        <| IdentifierCollision(decl.Name, "Identifier already in use")
+    else
+        context.registerFunction func, Result.Ok func
+
+
 let getError =
     function
     | Result.Ok _ -> []
@@ -160,6 +183,12 @@ let programAnalyzer (statements: Statement list) =
                 initializationAnalyzer i context
 
             newContext, Initialization i, result |> getError
+        | FuncDeclaration func ->
+            let newContext, result =
+                functionDeclAnalyzer func context
+
+            newContext, FuncDeclaration func, result |> getError
+
         | st -> context, st, []
 
     let rec visitStatements stList context (errors: SemanticError list) =
