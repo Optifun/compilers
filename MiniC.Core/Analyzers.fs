@@ -153,25 +153,28 @@ let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<Func
 
         match result with
         | Result.Ok _ -> true
-        | Result.Error error -> false
+        | Result.Error _ -> false
 
+    let checkFunction name =
+        monad.strict {
+            let! func = context.getFunction name
+            let f, _ = func
+            let pairs = List.zip f.Parameters node.Arguments
 
-    let func = context.getFunction node.FuncName
-
-    let succeed =
-        func
-        |> Result.map (fun (f, _) -> List.zip f.Parameters node.Arguments)
-        |> (Result.map <| List.forall checkParamTypes)
-        |> Result.defaultValue false
-
+            if (pairs.Length < f.Parameters.Length
+                || pairs.Length < node.Arguments.Length) then
+                return func, false
+            else
+                return func, pairs |> List.forall checkParamTypes
+        }
 
     let response =
-        func
+        checkFunction node.FuncName
         |> Result.mapError (fun _ -> UnknownFunctionCall(node.FuncName))
         |> Result.bind (
             function
-            | _ when succeed -> Result.Ok node
-            | f, _ -> Result.Error <| FunctionCallWrongParameters(f, node)
+            | _, succeed when succeed -> Result.Ok node
+            | (f, body), _ -> Result.Error <| FunctionCallWrongParameters(f, node)
         )
 
     context, response
