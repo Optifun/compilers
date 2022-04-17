@@ -89,49 +89,71 @@ let funcRetType (func: Function) =
     decl.ReturnType
 
 
+let expressionAnalyzer (node: Expression) (context: Scope) : Result<Expression, SemanticError> =
+
+    let rec visit expr =
+        expr
+        |> function
+            | Literal literal -> Result.Ok expr
+            | Call funcCall ->
+                if (isOk <| context.getFunction funcCall.FuncName) then
+                    Result.Ok expr
+                else
+                    Result.Error <| UnknownFunctionCall funcCall.FuncName
+
+            | Identifier id ->
+                if (isOk <| context.getVariable id) then
+                    Result.Ok expr
+                else
+                    Result.Error <| UnknownIdentifier id
+            | _ -> Result.Ok expr
+
+    visit node
+
+
+let matchTypeWith typeT (expr: Expression) (context: Scope) : Result<Expression, SemanticError> =
+    match typeT, expr with
+    | varType, Literal literal when varType = literal.GetTypeLiteral() -> Result.Ok expr
+    | varType, Call funcCall when
+        context.getFunction funcCall.FuncName
+        |> Result.map (fun f -> varType = funcRetType f)
+        |> Result.defaultValue false
+        ->
+        Result.Ok expr
+    | varType, Identifier id when
+        context.getVariable id
+        |> Result.map (fun v -> varType = v.TypeDecl)
+        |> Result.defaultValue false
+        ->
+        Result.Ok expr
+    | _ -> Result.Error <| ExpectedType(typeT, expr)
+
 
 let initializationAnalyzer (node: Initialization) (context: Scope) : Scope * Result<Initialization, SemanticError> =
     let var, value = node
 
     let newContext = context.registerVariable var
 
-    match var.TypeDecl, value with
-    | varType, Literal literal when varType = literal.GetTypeLiteral() -> newContext, Result.Ok node
-    | varType, Call funcCall when
-        context.getFunction funcCall.FuncName
-        |> Result.map (fun f -> varType = funcRetType f)
-        |> Result.defaultValue false
-        ->
-        newContext, Result.Ok node
-    | varType, Identifier id ->
-        context.getVariable id
-        |> Result.map (fun v ->
-            if (v.TypeDecl = varType) then
-                newContext, Result.Ok node
-            else
-                context, Result.Error <| TypeMismatch(var, Identifier v.Name)
-        )
-        |> Result.defaultValue (context, Result.Error <| UnknownIdentifier id)
-    | _ -> context, Result.Error <| TypeMismatch(var, value)
+    let result =
+        expressionAnalyzer value context
+        |> Result.bind (fun exp -> matchTypeWith var.TypeDecl exp context)
+        |> Result.bindError (fun _ -> Result.Error <| TypeMismatch(var, value))
+
+    match result with
+    | Result.Ok _ -> newContext, Result.Ok node
+    | Result.Error error -> context, Result.Error error
 
 let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<FunctionCall, SemanticError> =
 
     let checkParamTypes (param: Parameter, arg: Expression) =
-        match param.TypeDecl, arg with
-        | pType, Literal l when l.GetTypeLiteral() = pType -> true
-        | pType, Identifier id when
-            context.getVariable id
-            |> Result.map (fun v -> pType = v.TypeDecl)
-            |> Result.defaultValue false
-            ->
-            true
-        | pType, Call funcCall when
-            context.getFunction funcCall.FuncName
-            |> Result.map (fun f -> pType = funcRetType f)
-            |> Result.defaultValue false
-            ->
-            true
-        | _ -> false
+        let result =
+            expressionAnalyzer arg context
+            |> Result.bind (fun exp -> matchTypeWith param.TypeDecl exp context)
+            |> Result.bindError (fun _ -> Result.Error <| ParameterTypeMismatch(param, arg))
+
+        match result with
+        | Result.Ok _ -> true
+        | Result.Error error -> false
 
 
     let func = context.getFunction node.FuncName
