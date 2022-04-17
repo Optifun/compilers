@@ -219,37 +219,45 @@ let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Func
 
 let programAnalyzer (statements: Statement list) =
 
-    let analyze (statement: Statement) (context: Scope) : Scope * Statement * SemanticError list =
+    let analyze (statement: Statement) (context: Scope) : Scope * Result<Statement, SemanticError list> =
         match statement with
-        | Expression (Call call) ->
-            let newContext, result = funcCallAnalyzer call context
-            newContext, Expression(Call call), result |> getError
+        | Expression e ->
+            let result = expressionAnalyzer e context
+            context, liftAnalysisError result Expression
         | Initialization i ->
             let newContext, result =
                 initializationAnalyzer i context
 
-            newContext, Initialization i, result |> getError
+            newContext, liftAnalysis result Initialization
         | FuncDeclaration func ->
             let newContext, result =
                 functionDeclAnalyzer func context
 
-            newContext, FuncDeclaration func, result |> getError
+            newContext, liftAnalysis result FuncDeclaration
 
-        | st -> context, st, []
+        | st -> context, Result.Ok st
 
-    let rec visitStatements stList context (errors: SemanticError list) =
+    let rec visitStatements
+        (stList: Statement list)
+        (context: Scope)
+        (errors: SemanticError list)
+        : Statement list * Scope * SemanticError list =
         match stList with
         | cur :: tail ->
-            let newContext, _, error = analyze cur context
-            visitStatements tail newContext (errors @ error)
-        | [] -> context, errors
+            let newContext, result = analyze cur context
+
+            match result with
+            | Result.Ok statement ->
+                let _statements, _scope, _errors =
+                    visitStatements tail newContext errors
+
+                [ statement ] @ _statements, _scope, _errors
+            | Result.Error err -> visitStatements tail newContext (errors @ err)
+        | [] -> stList, context, errors
 
     let scope =
         Global
             { Variables = ImmutableDictionary.Empty
               Functions = ImmutableDictionary.Empty }
 
-    let context, errors =
-        visitStatements statements scope []
-
-    statements, context, errors
+    visitStatements statements scope []
