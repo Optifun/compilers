@@ -88,27 +88,22 @@ let funcRetType (func: Function) =
     let decl, body = func
     decl.ReturnType
 
+let errorL (err: 'a) : Result<'b, 'a list> = err |> List.singleton |> Result.Error
 
-let expressionAnalyzer (node: Expression) (context: Scope) : Result<Expression, SemanticError> =
+let getError =
+    function
+    | Result.Ok _ -> []
+    | Result.Error e -> [ e ]
 
-    let rec visit expr =
-        expr
-        |> function
-            | Literal literal -> Result.Ok expr
-            | Call funcCall ->
-                if (isOk <| context.getFunction funcCall.FuncName) then
-                    Result.Ok expr
-                else
-                    Result.Error <| UnknownFunctionCall funcCall.FuncName
+let liftAnalysisError (result: Result<'T, 'a>) (lift: 'T -> Statement) : Result<Statement, 'a list> =
+    match result with
+    | Result.Ok e -> Result.Ok <| lift e
+    | Result.Error err -> errorL err
 
-            | Identifier id ->
-                if (isOk <| context.getVariable id) then
-                    Result.Ok expr
-                else
-                    Result.Error <| UnknownIdentifier id
-            | _ -> Result.Ok expr
-
-    visit node
+let liftAnalysis (result: Result<'T, 'a>) (lift: 'T -> Statement) =
+    match result with
+    | Result.Ok e -> Result.Ok <| lift e
+    | Result.Error err -> Result.Error err
 
 
 let matchTypeWith typeT (expr: Expression) (context: Scope) : Result<Expression, SemanticError> =
@@ -128,8 +123,69 @@ let matchTypeWith typeT (expr: Expression) (context: Scope) : Result<Expression,
         Result.Ok expr
     | _ -> Result.Error <| ExpectedType(typeT, expr)
 
+let rec expressionAnalyzer (node: Expression) (context: Scope) : Result<Expression, SemanticError> =
 
-let initializationAnalyzer (node: Initialization) (context: Scope) : Scope * Result<Initialization, SemanticError> =
+    let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<FunctionCall, SemanticError> =
+
+        let checkParamTypes (param: Parameter, arg: Expression) =
+            let result =
+                expressionAnalyzer arg context
+                |> Result.bind (fun exp -> matchTypeWith param.TypeDecl exp context)
+                |> Result.bindError (fun _ -> Result.Error <| ParameterTypeMismatch(param, arg))
+
+            match result with
+            | Result.Ok _ -> true
+            | Result.Error _ -> false
+
+        let checkFunction name =
+            monad.strict {
+                let! func = context.getFunction name
+                let f, _ = func
+
+                if (f.Parameters.Length <> node.Arguments.Length) then
+                    return func, false
+                else
+                    return func, List.zip f.Parameters node.Arguments |> List.forall checkParamTypes
+            }
+
+        let response =
+            checkFunction node.FuncName
+            |> Result.mapError (fun _ -> UnknownFunctionCall(node.FuncName))
+            |> Result.bind (
+                function
+                | _, succeed when succeed -> Result.Ok node
+                | (f, _), _ -> Result.Error <| FunctionCallWrongParameters(f, node)
+            )
+
+        context, response
+
+    let rec visit expr =
+        expr
+        |> function
+            | Literal literal -> Result.Ok expr
+            | Call funcCall ->
+                if not (isOk <| context.getFunction funcCall.FuncName) then
+                    Result.Error <| UnknownFunctionCall funcCall.FuncName
+                else
+                    funcCallAnalyzer funcCall context
+                    |> function
+                        | _, Result.Ok _ -> Result.Ok expr
+                        | _, Result.Error err -> Result.Error err
+
+            | Identifier id ->
+                if (isOk <| context.getVariable id) then
+                    Result.Ok expr
+                else
+                    Result.Error <| UnknownIdentifier id
+            | _ -> Result.Ok expr
+
+    visit node
+
+
+let initializationAnalyzer
+    (node: Initialization)
+    (context: Scope)
+    : Scope * Result<Initialization, SemanticError list> =
     let var, value = node
 
     let newContext = context.registerVariable var
@@ -137,64 +193,29 @@ let initializationAnalyzer (node: Initialization) (context: Scope) : Scope * Res
     let result =
         expressionAnalyzer value context
         |> Result.bind (fun exp -> matchTypeWith var.TypeDecl exp context)
-        |> Result.bindError (fun _ -> Result.Error <| TypeMismatch(var, value))
+        |> Result.bindError (
+            function
+            | FunctionCallWrongParameters (d, b) -> errorL <| FunctionCallWrongParameters(d, b)
+            | ExpectedType _ -> errorL <| TypeMismatch(var, value)
+            | err ->
+                Result.Error [ err
+                               TypeMismatch(var, value) ]
+        )
+
 
     match result with
     | Result.Ok _ -> newContext, Result.Ok node
     | Result.Error error -> context, Result.Error error
 
-let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<FunctionCall, SemanticError> =
-
-    let checkParamTypes (param: Parameter, arg: Expression) =
-        let result =
-            expressionAnalyzer arg context
-            |> Result.bind (fun exp -> matchTypeWith param.TypeDecl exp context)
-            |> Result.bindError (fun _ -> Result.Error <| ParameterTypeMismatch(param, arg))
-
-        match result with
-        | Result.Ok _ -> true
-        | Result.Error _ -> false
-
-    let checkFunction name =
-        monad.strict {
-            let! func = context.getFunction name
-            let f, _ = func
-            let pairs = List.zip f.Parameters node.Arguments
-
-            if (pairs.Length < f.Parameters.Length
-                || pairs.Length < node.Arguments.Length) then
-                return func, false
-            else
-                return func, pairs |> List.forall checkParamTypes
-        }
-
-    let response =
-        checkFunction node.FuncName
-        |> Result.mapError (fun _ -> UnknownFunctionCall(node.FuncName))
-        |> Result.bind (
-            function
-            | _, succeed when succeed -> Result.Ok node
-            | (f, body), _ -> Result.Error <| FunctionCallWrongParameters(f, node)
-        )
-
-    context, response
-
-let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError> =
+let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError list> =
     let decl, _ = func
 
     if (isOk <| context.getVariable decl.Name
         || isOk <| context.getFunction decl.Name) then
-        context,
-        Result.Error
-        <| IdentifierCollision(decl.Name, "Identifier already in use")
+        context, errorL <| IdentifierCollision(decl.Name, "Identifier already in use")
     else
         context.registerFunction func, Result.Ok func
 
-
-let getError =
-    function
-    | Result.Ok _ -> []
-    | Result.Error e -> [ e ]
 
 let programAnalyzer (statements: Statement list) =
 
