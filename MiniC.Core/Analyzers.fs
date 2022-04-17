@@ -92,6 +92,15 @@ let initializationAnalyzer (node: Initialization) (context: Scope) : Scope * Res
         |> Result.defaultValue false
         ->
         newContext, Result.Ok node
+    | varType, Identifier id ->
+        context.getVariable id
+        |> Result.map (fun v ->
+            if (v.TypeDecl = varType) then
+                newContext, Result.Ok node
+            else
+                context, Result.Error <| TypeMismatch(var, Identifier v.Name)
+        )
+        |> Result.defaultValue (context, Result.Error <| UnknownIdentifier id)
     | _ -> context, Result.Error <| TypeMismatch(var, value)
 
 let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<FunctionCall, SemanticError> =
