@@ -62,3 +62,103 @@ let ``Initialisation type mismatch`` () =
     statements |> should equal _statements
     errors |> should equal _errors
     scope |> should equal _scope
+
+
+[<Test>]
+let ``Variables initialization with literals`` () =
+    let input =
+        "
+        int abc = 2;
+        float def = -1.0;
+        bool ghi = true;
+        "
+
+    let _statements =
+        [ Initialization(varD ("abc", IntL), intLiteral 2)
+          Initialization(varD ("def", FloatL), floatLiteral -1.0)
+          Initialization(varD ("ghi", BoolL), boolLiteral true) ]
+
+    let _scope =
+        constructContext [ varD ("abc", IntL)
+                           varD ("def", FloatL)
+                           varD ("ghi", BoolL) ] []
+        |> Global
+
+    let _errors: SemanticError list = []
+
+    let statements, scope, errors =
+        runParser input programParser
+        |> toResult
+        |> Result.map programAnalyzer
+        |> Result.get
+
+    statements |> should equal _statements
+    errors |> should equal _errors
+    scope |> should equal _scope
+
+[<Test>]
+let ``Variable initialization with another variable`` () =
+    let input =
+        "
+        int abc = 2;
+        int def = abc;
+        "
+
+    let _statements =
+        [ Initialization(varD ("abc", IntL), intLiteral 2)
+          Initialization(varD ("def", IntL), Identifier "abc") ]
+
+    let _scope =
+        constructContext [ varD ("abc", IntL)
+                           varD ("def", IntL) ] []
+        |> Global
+
+    let _errors: SemanticError list = []
+
+    let statements, scope, errors =
+        runParser input programParser
+        |> toResult
+        |> Result.map programAnalyzer
+        |> Result.get
+
+    statements |> should equal _statements
+    errors |> should equal _errors
+    scope |> should equal _scope
+
+
+[<Test>]
+let ``Function calling with correct parameters`` () =
+    let input =
+        "
+        int f(int n) {return 42;}
+        int abc = f(2);
+        "
+
+    let funcCall =
+        Call
+            { FuncName = "f"
+              Arguments = [ intLiteral 2 ] }
+
+    let func =
+        funcD ("f", IntL, [ paramD ("n", IntL) ]), [ Statement.Return <| intLiteral 42 ]
+
+    let variable = varD ("abc", IntL)
+
+    let _statements =
+        [ FuncDeclaration func
+          Initialization(variable, funcCall) ]
+
+    let _scope =
+        constructContext [ variable ] [ func ] |> Global
+
+    let _errors: SemanticError list = []
+
+    let statements, scope, errors =
+        runParser input programParser
+        |> toResult
+        |> Result.map programAnalyzer
+        |> Result.get
+
+    statements |> should equal _statements
+    errors |> should equal _errors
+    scope |> should equal _scope
