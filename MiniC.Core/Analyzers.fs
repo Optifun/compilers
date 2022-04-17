@@ -51,7 +51,7 @@ type Context with
     member x.hasIdentifier (id: Identifier) = hasIdentifier x id
 
 
-let rec visitScope (scope: Scope) (visitor: Context -> Identifier -> Result<'elem, exn>) id : Result<'elem, exn> =
+let rec visitScope (scope: Scope) (visitor: Context -> Identifier -> Result<'elem, 'TErr>) id : Result<'elem, 'TErr> =
     scope
     |> function
         | Global context -> visitor context id
@@ -146,6 +146,11 @@ let programAnalyzer (statements: Statement list) =
         | Expression (Call call) ->
             let newContext, result = funcCallAnalyzer call context
             newContext, Expression(Call call), result |> getError
+        | Initialization i ->
+            let newContext, result =
+                initializationAnalyzer i context
+
+            newContext, Initialization i, result |> getError
         | st -> context, st, []
 
     let rec visitStatements stList context (errors: SemanticError list) =
