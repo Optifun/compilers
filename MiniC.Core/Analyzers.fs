@@ -45,6 +45,8 @@ module Context =
 
     let hasVariable context (id: Identifier) = Seq.contains id context.Variables.Keys
     let hasIdentifier context (id: Identifier) = hasFunction context id || hasVariable context id
+    
+    let empty = {Functions = ImmutableDictionary.Empty; Variables=ImmutableDictionary.Empty}
 
 type Context with
     member x.registerVariable (var: Variable) = registerVariable x var
@@ -105,6 +107,10 @@ let liftAnalysis (result: Result<'T, 'a>) (lift: 'T -> Statement) =
     | Result.Ok e -> Result.Ok <| lift e
     | Result.Error err -> Result.Error err
 
+let nonVoidVariable (var:Variable) =
+    match var.TypeDecl with
+    | VoidL -> Result.Error <| VoidVariableType var
+    | _ -> Result.Ok var
 
 let matchTypeWith typeT (expr: Expression) (context: Scope) : Result<Expression, SemanticError> =
     match typeT, expr with
@@ -127,7 +133,7 @@ let rec expressionAnalyzer (node: Expression) (context: Scope) : Result<Expressi
 
     let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<FunctionCall, SemanticError> =
 
-        let checkParamTypes (param: Parameter, arg: Expression) =
+        let checkParamTypes (param: Variable, arg: Expression) =
             let result =
                 expressionAnalyzer arg context
                 |> Result.bind (fun exp -> matchTypeWith param.TypeDecl exp context)
@@ -202,24 +208,67 @@ let initializationAnalyzer
                                TypeMismatch(var, value) ]
         )
 
-
     match result with
     | Result.Ok _ -> newContext, Result.Ok node
     | Result.Error error -> context, Result.Error error
 
-let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError list> =
-    let decl, _ = func
-
-    if (isOk <| context.getVariable decl.Name
-        || isOk <| context.getFunction decl.Name) then
-        context, errorL <| IdentifierCollision(decl.Name, "Identifier already in use")
+let checkCollision (context:Scope) id =
+    if (isOk <| context.getVariable id
+    || isOk <| context.getFunction id) then
+        Result.Error <| IdentifierCollision(id, "Identifier already in use")
     else
-        context.registerFunction func, Result.Ok func
+        Result.Ok id
 
+let analyzeVariable (analysisContext:Result<Scope, SemanticError list>) (var:Variable) =
+        let result =
+            var
+            |> nonVoidVariable
+        
+        match result, analysisContext with
+        | Result.Ok _, Result.Ok context -> var, checkCollision context var.Name |> Result.map (context.registerVariable)
+        | Result.Error err, Result.Error errors -> var, Result.Error <| errors @ [err]
+        | Result.Error err, _ -> var, Result.Error <| [ err ]
+        | _, Result.Error errors -> var, Result.Error <| errors
 
-let programAnalyzer (statements: Statement list) =
+let funcSignatureAnalyzer (func:Function) (context:Scope) : Scope * Result<Function, SemanticError list> =
+    
+    let funcDecl, _ = func
+            
+    let a = monad.strict {
+        let! collision = checkCollision context funcDecl.Name
+        
+        let newContext = context.registerFunction func
+        let nestedContext = Function (newContext, Context.empty)
 
-    let analyze (statement: Statement) (context: Scope) : Scope * Result<Statement, SemanticError list> =
+        let errList: SemanticError list = []
+        let parameters, (newContext, errors) = Seq.mapFold analyzeVariable Result.Ok nestedContext funcDecl.Parameters    
+        
+        if (errors.Length > 0) then
+            return errors
+        else
+            return func
+    }
+
+let rec statementBlockAnalyzer
+    (stList: Block)
+    (context: Scope)
+    (errors: SemanticError list)
+    : Statement list * Scope * SemanticError list =
+        
+    let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError list> =
+        let funcDecl, funcBody = func
+
+        if (isOk <| context.getVariable funcDecl.Name
+            || isOk <| context.getFunction funcDecl.Name) then
+            context, errorL <| IdentifierCollision(funcDecl.Name, "Identifier already in use")
+        else
+            let newContext = context.registerFunction func
+            let nestedContext = Function (newContext, Context.empty)
+            
+            let result = statementBlockAnalyzer funcBody nestedContext []
+            newContext, Result.Ok func
+
+    let statementAnalyzer (statement: Statement) (context: Scope) : Scope * Result<Statement, SemanticError list> =
         match statement with
         | Expression e ->
             let result = expressionAnalyzer e context
@@ -236,28 +285,26 @@ let programAnalyzer (statements: Statement list) =
             newContext, liftAnalysis result FuncDeclaration
 
         | st -> context, Result.Ok st
+        
+    match stList with
+    | cur :: tail ->
+        let newContext, result = statementAnalyzer cur context
 
-    let rec visitStatements
-        (stList: Statement list)
-        (context: Scope)
-        (errors: SemanticError list)
-        : Statement list * Scope * SemanticError list =
-        match stList with
-        | cur :: tail ->
-            let newContext, result = analyze cur context
+        match result with
+        | Result.Ok statement ->
+            let _statements, _scope, _errors =
+                statementBlockAnalyzer tail newContext errors
 
-            match result with
-            | Result.Ok statement ->
-                let _statements, _scope, _errors =
-                    visitStatements tail newContext errors
+            [ statement ] @ _statements, _scope, _errors
+        | Result.Error err -> statementBlockAnalyzer tail newContext (errors @ err)
+    | [] -> stList, context, errors
 
-                [ statement ] @ _statements, _scope, _errors
-            | Result.Error err -> visitStatements tail newContext (errors @ err)
-        | [] -> stList, context, errors
+let programAnalyzer (statements: Statement list) =
+
 
     let scope =
         Global
             { Variables = ImmutableDictionary.Empty
               Functions = ImmutableDictionary.Empty }
 
-    visitStatements statements scope []
+    statementBlockAnalyzer statements scope []
