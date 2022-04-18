@@ -155,7 +155,7 @@ module Syntax =
         >>= mapResultToReply "Incorrect literal"
         <??> "Literal"
 
-    let argParser: Parser<Parameter, _> =
+    let argParser: Parser<Variable, _> =
         typeLexemParser .>> ws1 .>>. identifierStringParser
         |>> fun (t, i) -> { Name = i; TypeDecl = t }
 

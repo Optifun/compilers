@@ -37,16 +37,10 @@ and TypeLiteral =
 type Identifier = string
 
 and FunctionDecl =
-    { Parameters: Parameter list
+    { Parameters: Variable list
       ReturnType: TypeLiteral
       Name: Identifier }
 
-
-and Parameter =
-    { TypeDecl: TypeLiteral
-      Name: Identifier
-    //      Function: Function
-     }
 
 and Variable =
     { TypeDecl: TypeLiteral
@@ -69,7 +63,7 @@ and Statement =
     | Block of Block
     | VarDeclaration of Variable
     | FuncDeclaration of Function
-    | ParamDeclaration of Parameter
+    | ParamDeclaration of Variable
 
 and FunctionCall =
     { FuncName: Identifier
@@ -116,8 +110,6 @@ and BinaryOp =
     static member GetCases = GetCases<BinaryOp>
 
 let varD (name, typeL) : Variable = { TypeDecl = typeL; Name = name }
-
-let paramD (name, typeL) : Parameter = { TypeDecl = typeL; Name = name }
 
 let funcD (name, typeL, pars) : FunctionDecl =
     { Name = name

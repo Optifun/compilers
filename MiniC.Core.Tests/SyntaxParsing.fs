@@ -3,6 +3,7 @@
 open FSharpPlus
 open FSharpPlus.Data
 open MiniC.Core.AST
+open MiniC.Core.AST
 open NUnit.Framework
 open FParsec
 open FsUnit
@@ -23,11 +24,11 @@ let ``Parse arguments definition`` () =
     let input = "int a, bool b, float c, int d"
     let parser = argsParser
 
-    let expect: Parameter list =
-        [ paramD ("a", IntL)
-          paramD ("b", BoolL)
-          paramD ("c", FloatL)
-          paramD ("d", IntL) ]
+    let expect: Variable list =
+        [ varD ("a", IntL)
+          varD ("b", BoolL)
+          varD ("c", FloatL)
+          varD ("d", IntL) ]
 
     runParser input parser
     |> toResult
@@ -39,7 +40,7 @@ let ``Parse one argument definition`` () =
     let input = "int a"
     let parser = argsParser
 
-    let expect: Parameter list = [ paramD ("a", IntL) ]
+    let expect: Variable list = [ varD ("a", IntL) ]
 
     runParser input parser
     |> toResult
@@ -193,8 +194,8 @@ let ``Parse function declaration`` () =
         { Name = "function"
           ReturnType = VoidL
           Parameters =
-            [ paramD ("a", IntL)
-              paramD ("b", BoolL) ] }
+            [ varD ("a", IntL)
+              varD ("b", BoolL) ] }
 
     let expect =
         FuncDeclaration(
@@ -224,8 +225,8 @@ let ``Parse function call inside function body`` () =
         { Name = "function"
           ReturnType = VoidL
           Parameters =
-            [ paramD ("a", IntL)
-              paramD ("b", BoolL) ] }
+            [ varD ("a", IntL)
+              varD ("b", BoolL) ] }
 
     let expect =
         FuncDeclaration(func, [ Return <| funcCall ("function", [ intLiteral 24; boolLiteral true ]) ])
@@ -257,13 +258,13 @@ let ``Parse nested statement blocks`` () =
         { Name = "function"
           ReturnType = VoidL
           Parameters =
-            [ paramD ("a", IntL)
-              paramD ("b", BoolL) ] }
+            [ varD ("a", IntL)
+              varD ("b", BoolL) ] }
 
     let func2: FunctionDecl =
         { Name = "example"
           ReturnType = IntL
-          Parameters = [ paramD ("value", BoolL) ] }
+          Parameters = [ varD ("value", BoolL) ] }
 
     let expect =
         FuncDeclaration(

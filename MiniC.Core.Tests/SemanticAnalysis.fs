@@ -147,8 +147,7 @@ let ``Function calling with correct parameters`` () =
         [ FuncDeclaration func
           Initialization(variable, funcCall) ]
 
-    let _scope =
-        constructContext [ variable ] [ func ] |> Global
+    let _scope = constructContext [ variable ] [ func ] |> Global
 
     let _errors: SemanticError list = []
 
@@ -174,16 +173,14 @@ let ``Calling function with incorrect parameters count`` () =
         { FuncName = "f"
           Arguments = [ intLiteral 2; intLiteral 4 ] }
 
-    let functionDecl =
-        funcD ("f", IntL, [ paramD ("n", IntL) ])
+    let functionDecl = funcD ("f", IntL, [ paramD ("n", IntL) ])
 
     let func =
         functionDecl, [ Statement.Return <| intLiteral 42 ]
 
     let variable = varD ("abc", IntL)
 
-    let _statements: Statement list =
-        [ FuncDeclaration func ]
+    let _statements: Statement list = [ FuncDeclaration func ]
 
     let _scope = constructContext [] [ func ] |> Global
 
