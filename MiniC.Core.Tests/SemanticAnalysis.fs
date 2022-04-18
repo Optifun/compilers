@@ -196,3 +196,59 @@ let ``Calling function with incorrect parameters count`` () =
     statements |> should equal _statements
     errors |> should equal _errors
     scope |> should equal _scope
+
+
+[<Test>]
+let ``Define function inside another function`` () =
+    let input =
+        "void function(int a, bool b)
+        {
+            int example(bool value)
+            {
+                return 23;
+            }
+            {
+                int c = example(24, true);
+            }
+        }
+        "
+
+    let funcD1: FunctionDecl =
+        { Name = "function"
+          ReturnType = VoidL
+          Parameters =
+              [ paramD ("a", IntL)
+                paramD ("b", BoolL) ] }
+
+    let funcD2: FunctionDecl =
+        { Name = "example"
+          ReturnType = IntL
+          Parameters = [ paramD ("value", BoolL) ] }
+    let func2: Function = funcD2, [ Return << Literal << IntNumber <| 23 ]
+
+    let func1Body =
+        [ FuncDeclaration(func2)
+          Block [ Initialization(
+                      { TypeDecl = IntL; Name = "c" },
+                      funcCall ("example", [ intLiteral 24; boolLiteral true ])
+                  ) ] ]
+    let func1 = funcD1, func1Body
+    
+    let _statements = [ FuncDeclaration(funcD1, func1Body) ]
+
+    let _scope =
+        constructContext [] [func1]
+        |> Global
+
+    let _errors: SemanticError list =
+        [ ]
+
+//    let statements, scope, errors =
+    monad.strict {
+        let! AST = runParser input programParser |> toResult
+        let statements, scope, errors = programAnalyzer AST
+        
+        statements |> should equal _statements
+        errors |> should equal _errors
+        scope |> should equal _scope
+    } |> monad.Run |> ignore
