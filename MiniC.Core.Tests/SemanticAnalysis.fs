@@ -244,3 +244,98 @@ let ``Define function inside another function`` () =
     }
     |> monad.Run
     |> ignore
+
+
+[<Test>]
+let ``Calling function with inner declarations`` () =
+    let input =
+        "
+        int f(int n) {
+            int abc = n;
+            return abc;
+        }
+        int abc = f(2);
+        "
+
+    let funcCall =
+        Call
+            { FuncName = "f"
+              Arguments = [ intLiteral 2 ] }
+
+    let innerStatements =
+        [ Initialization(varD ("abc", IntL), Identifier "n")
+          Statement.Return <| Identifier "abc" ]
+
+    let func =
+        funcD ("f", IntL, [ varD ("n", IntL) ]), innerStatements
+
+    let variable = varD ("abc", IntL)
+
+    let _statements =
+        [ FuncDeclaration func
+          Initialization(variable, funcCall) ]
+
+    let _scope =
+        Context.create [ variable ] [ func ] |> Global
+
+    let _errors: SemanticError list = []
+
+    let statements, scope, errors =
+        runParser input programParser
+        |> toResult
+        |> Result.map programAnalyzer
+        |> Result.get
+
+    statements |> should equal _statements
+    errors |> should equal _errors
+    scope |> should equal _scope
+
+[<Test>]
+let ``Identifier collision within function body`` () =
+    let input =
+        "
+        int bcd = 0;
+        int f(int n) {
+            int bcd = n;
+            return bcd;
+        }
+        int abc = f(2);
+        "
+
+    let funcCall =
+        Call
+            { FuncName = "f"
+              Arguments = [ intLiteral 2 ] }
+
+    let innerStatements =
+        [ Initialization(varD ("abc", IntL), Identifier "n")
+          Statement.Return <| Identifier "abc" ]
+
+    let func =
+        funcD ("f", IntL, [ varD ("n", IntL) ]), innerStatements
+
+    let variable = varD ("abc", IntL)
+
+    let collidedVar = varD ("bcd", IntL)
+
+    let _statements =
+        [ Initialization(collidedVar, intLiteral 0)
+          //          FuncDeclaration func
+//          Initialization(variable, funcCall)
+          ]
+
+    let _scope =
+        Context.create [ collidedVar ] [] |> Global
+
+    let _errors: SemanticError list =
+        [ IdentifierCollision("bcd", "Identifier already in use") ]
+
+    let statements, scope, errors =
+        runParser input programParser
+        |> toResult
+        |> Result.map programAnalyzer
+        |> Result.get
+
+    errors |> should equal _errors
+    statements |> should equal _statements
+    scope |> should equal _scope

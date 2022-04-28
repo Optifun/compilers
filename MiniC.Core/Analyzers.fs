@@ -251,7 +251,7 @@ let analyzeVariable
     | Result.Error err, _ -> var, Result.Error <| [ err ]
     | _, Result.Error errors -> var, Result.Error <| errors
 
-let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Function * Scope, SemanticError list> =
+let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Scope * Scope, SemanticError list> =
 
     let funcDecl, _ = func
 
@@ -266,18 +266,19 @@ let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Function * 
         let nestedContext = Function(ctx, Context.empty)
         Seq.mapFold analyzeVariable (Result.Ok nestedContext)
 
-    let registerParameters func : Result<Scope, SemanticError list> =
+    let registerParameters func : Result<Scope * Scope, SemanticError list> =
         monad.strict {
-            let! tempContext = checkFuncName
+            let! globalContext = checkFuncName
 
             let _, resultContext =
-                registerParams tempContext func.Parameters
+                registerParams globalContext func.Parameters
 
-            return! resultContext
+            let! innerContext = resultContext
+            return globalContext, innerContext
         }
 
     match registerParameters funcDecl with
-    | Result.Ok scope -> Result.Ok(func, scope)
+    | Result.Ok scopes -> Result.Ok scopes
     | Result.Error errors -> Result.Error errors
 
 let rec statementBlockAnalyzer
@@ -290,12 +291,12 @@ let rec statementBlockAnalyzer
         let funcDecl, funcBody = func
 
         match funcSignatureAnalyzer func context with
-        | Result.Ok (f, innerContext) ->
-            let _, newScope, errors =
+        | Result.Ok (newContext, innerContext) ->
+            let _, _, errors =
                 statementBlockAnalyzer funcBody innerContext []
 
             if (errors.Length = 0) then
-                newScope, Result.Ok f
+                newContext, Result.Ok func
             else
                 context, Result.Error errors
         | Result.Error errors -> context, Result.Error errors
