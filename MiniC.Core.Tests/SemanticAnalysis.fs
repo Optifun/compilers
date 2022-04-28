@@ -139,7 +139,7 @@ let ``Function calling with correct parameters`` () =
               Arguments = [ intLiteral 2 ] }
 
     let func =
-        funcD ("f", IntL, [ paramD ("n", IntL) ]), [ Statement.Return <| intLiteral 42 ]
+        funcD ("f", IntL, [ varD ("n", IntL) ]), [ Statement.Return <| intLiteral 42 ]
 
     let variable = varD ("abc", IntL)
 
@@ -147,7 +147,8 @@ let ``Function calling with correct parameters`` () =
         [ FuncDeclaration func
           Initialization(variable, funcCall) ]
 
-    let _scope = constructContext [ variable ] [ func ] |> Global
+    let _scope =
+        constructContext [ variable ] [ func ] |> Global
 
     let _errors: SemanticError list = []
 
@@ -173,14 +174,16 @@ let ``Calling function with incorrect parameters count`` () =
         { FuncName = "f"
           Arguments = [ intLiteral 2; intLiteral 4 ] }
 
-    let functionDecl = funcD ("f", IntL, [ paramD ("n", IntL) ])
+    let functionDecl =
+        funcD ("f", IntL, [ varD ("n", IntL) ])
 
     let func =
         functionDecl, [ Statement.Return <| intLiteral 42 ]
 
     let variable = varD ("abc", IntL)
 
-    let _statements: Statement list = [ FuncDeclaration func ]
+    let _statements: Statement list =
+        [ FuncDeclaration func ]
 
     let _scope = constructContext [] [ func ] |> Global
 
@@ -216,15 +219,15 @@ let ``Define function inside another function`` () =
     let funcD1: FunctionDecl =
         { Name = "function"
           ReturnType = VoidL
-          Parameters =
-              [ paramD ("a", IntL)
-                paramD ("b", BoolL) ] }
+          Parameters = [ varD ("a", IntL); varD ("b", BoolL) ] }
 
     let funcD2: FunctionDecl =
         { Name = "example"
           ReturnType = IntL
-          Parameters = [ paramD ("value", BoolL) ] }
-    let func2: Function = funcD2, [ Return << Literal << IntNumber <| 23 ]
+          Parameters = [ varD ("value", BoolL) ] }
+
+    let func2: Function =
+        funcD2, [ Return << Literal << IntNumber <| 23 ]
 
     let func1Body =
         [ FuncDeclaration(func2)
@@ -232,23 +235,24 @@ let ``Define function inside another function`` () =
                       { TypeDecl = IntL; Name = "c" },
                       funcCall ("example", [ intLiteral 24; boolLiteral true ])
                   ) ] ]
+
     let func1 = funcD1, func1Body
-    
-    let _statements = [ FuncDeclaration(funcD1, func1Body) ]
 
-    let _scope =
-        constructContext [] [func1]
-        |> Global
+    let _statements =
+        [ FuncDeclaration(funcD1, func1Body) ]
 
-    let _errors: SemanticError list =
-        [ ]
+    let _scope = constructContext [] [ func1 ] |> Global
 
-//    let statements, scope, errors =
+    let _errors: SemanticError list = []
+
+    //    let statements, scope, errors =
     monad.strict {
         let! AST = runParser input programParser |> toResult
         let statements, scope, errors = programAnalyzer AST
-        
+
         statements |> should equal _statements
         errors |> should equal _errors
         scope |> should equal _scope
-    } |> monad.Run |> ignore
+    }
+    |> monad.Run
+    |> ignore
