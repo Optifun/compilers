@@ -45,8 +45,10 @@ module Context =
 
     let hasVariable context (id: Identifier) = Seq.contains id context.Variables.Keys
     let hasIdentifier context (id: Identifier) = hasFunction context id || hasVariable context id
-    
-    let empty = {Functions = ImmutableDictionary.Empty; Variables=ImmutableDictionary.Empty}
+
+    let empty =
+        { Functions = ImmutableDictionary.Empty
+          Variables = ImmutableDictionary.Empty }
 
 type Context with
     member x.registerVariable (var: Variable) = registerVariable x var
@@ -90,24 +92,27 @@ let funcRetType (func: Function) =
     let decl, body = func
     decl.ReturnType
 
-let errorL (err: 'a) : Result<'b, 'a list> = err |> List.singleton |> Result.Error
+let errorSingle (err: 'a) : Result<'b, 'a list> = err |> List.singleton |> Result.Error
 
 let getError =
     function
     | Result.Ok _ -> []
     | Result.Error e -> [ e ]
 
+let liftError: Result<'a, 'err> -> Result<'a, 'err list> =
+    Result.mapError (fun err -> [ err ])
+
 let liftAnalysisError (result: Result<'T, 'a>) (lift: 'T -> Statement) : Result<Statement, 'a list> =
     match result with
     | Result.Ok e -> Result.Ok <| lift e
-    | Result.Error err -> errorL err
+    | Result.Error err -> errorSingle err
 
 let liftAnalysis (result: Result<'T, 'a>) (lift: 'T -> Statement) =
     match result with
     | Result.Ok e -> Result.Ok <| lift e
     | Result.Error err -> Result.Error err
 
-let nonVoidVariable (var:Variable) =
+let nonVoidVariable (var: Variable) =
     match var.TypeDecl with
     | VoidL -> Result.Error <| VoidVariableType var
     | _ -> Result.Ok var
@@ -201,8 +206,8 @@ let initializationAnalyzer
         |> Result.bind (fun exp -> matchTypeWith var.TypeDecl exp context)
         |> Result.bindError (
             function
-            | FunctionCallWrongParameters (d, b) -> errorL <| FunctionCallWrongParameters(d, b)
-            | ExpectedType _ -> errorL <| TypeMismatch(var, value)
+            | FunctionCallWrongParameters (d, b) -> errorSingle <| FunctionCallWrongParameters(d, b)
+            | ExpectedType _ -> errorSingle <| TypeMismatch(var, value)
             | err ->
                 Result.Error [ err
                                TypeMismatch(var, value) ]
@@ -212,9 +217,8 @@ let initializationAnalyzer
     | Result.Ok _ -> newContext, Result.Ok node
     | Result.Error error -> context, Result.Error error
 
-let checkCollision (context:Scope) id =
-    if (isOk <| context.getVariable id
-    || isOk <| context.getFunction id) then
+let checkCollision (context: Scope) id =
+    if (isOk <| context.getVariable id || isOk <| context.getFunction id) then
         Result.Error <| IdentifierCollision(id, "Identifier already in use")
     else
         Result.Ok id
@@ -254,7 +258,7 @@ let rec statementBlockAnalyzer
     (context: Scope)
     (errors: SemanticError list)
     : Statement list * Scope * SemanticError list =
-        
+
     let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError list> =
         let funcDecl, funcBody = func
 
@@ -285,7 +289,7 @@ let rec statementBlockAnalyzer
             newContext, liftAnalysis result FuncDeclaration
 
         | st -> context, Result.Ok st
-        
+
     match stList with
     | cur :: tail ->
         let newContext, result = statementAnalyzer cur context
