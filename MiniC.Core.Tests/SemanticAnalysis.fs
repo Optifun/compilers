@@ -17,7 +17,7 @@ open MiniC.Core.Combinators.Syntax
 
 let runParser input parser = runParserOnString parser "" "some" input
 
-let toImmutable (d: IDictionary<'a, 'c>) : ImmutableDictionary<'a, 'c> = d.ToImmutableDictionary()
+
 
 let toResult<'a, 'b> (value: ParserResult<'a, 'b>) : Result<_, _> =
     value
@@ -25,18 +25,6 @@ let toResult<'a, 'b> (value: ParserResult<'a, 'b>) : Result<_, _> =
         | Success (v, _, _) -> Result.Ok v
         | Failure (x, _, _) -> Result.Error x
 
-
-let constructContext (variables: Variable list) (functions: Function list) : Context =
-    let vars =
-        variables |> Seq.map (fun v -> v.Name, v) |> dict |> toImmutable
-
-    let funcs =
-        functions
-        |> Seq.map (fun (fd, fb) -> fd.Name, (fd, fb))
-        |> dict
-        |> toImmutable
-
-    { Variables = vars; Functions = funcs }
 
 [<Test>]
 let ``Initialisation type mismatch`` () =
@@ -47,7 +35,7 @@ let ``Initialisation type mismatch`` () =
 
     let _statements: Statement list = []
 
-    let _scope = constructContext [] [] |> Global
+    let _scope = Context.create [] [] |> Global
 
     let _errors: SemanticError list =
         [ TypeMismatch({ Name = "abc"; TypeDecl = IntL }, boolLiteral false) ]
@@ -78,9 +66,9 @@ let ``Variables initialization with literals`` () =
           Initialization(varD ("ghi", BoolL), boolLiteral true) ]
 
     let _scope =
-        constructContext [ varD ("abc", IntL)
-                           varD ("def", FloatL)
-                           varD ("ghi", BoolL) ] []
+        Context.create [ varD ("abc", IntL)
+                         varD ("def", FloatL)
+                         varD ("ghi", BoolL) ] []
         |> Global
 
     let _errors: SemanticError list = []
@@ -108,8 +96,8 @@ let ``Variable initialization with another variable`` () =
           Initialization(varD ("def", IntL), Identifier "abc") ]
 
     let _scope =
-        constructContext [ varD ("abc", IntL)
-                           varD ("def", IntL) ] []
+        Context.create [ varD ("abc", IntL)
+                         varD ("def", IntL) ] []
         |> Global
 
     let _errors: SemanticError list = []
@@ -148,7 +136,7 @@ let ``Function calling with correct parameters`` () =
           Initialization(variable, funcCall) ]
 
     let _scope =
-        constructContext [ variable ] [ func ] |> Global
+        Context.create [ variable ] [ func ] |> Global
 
     let _errors: SemanticError list = []
 
@@ -185,7 +173,7 @@ let ``Calling function with incorrect parameters count`` () =
     let _statements: Statement list =
         [ FuncDeclaration func ]
 
-    let _scope = constructContext [] [ func ] |> Global
+    let _scope = Context.create [] [ func ] |> Global
 
     let _errors: SemanticError list =
         [ FunctionCallWrongParameters(functionDecl, funcCall) ]
@@ -241,7 +229,7 @@ let ``Define function inside another function`` () =
     let _statements =
         [ FuncDeclaration(funcD1, func1Body) ]
 
-    let _scope = constructContext [] [ func1 ] |> Global
+    let _scope = Context.create [] [ func1 ] |> Global
 
     let _errors: SemanticError list = []
 

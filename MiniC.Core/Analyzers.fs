@@ -11,6 +11,7 @@ open MiniC.Core.Combinators
 open MiniC.Core.AST
 open MiniC.Core.Error
 
+let toImmutable (d: IDictionary<'a, 'c>) : ImmutableDictionary<'a, 'c> = d.ToImmutableDictionary()
 
 let isOk result =
     match result with
@@ -26,6 +27,17 @@ and CompoundContext = Scope * Context
 and Context =
     { Functions: ImmutableDictionary<Identifier, Function>
       Variables: ImmutableDictionary<Identifier, Variable> }
+    static member create (variables: Variable list) (functions: Function list) : Context =
+        let vars =
+            variables |> Seq.map (fun v -> v.Name, v) |> dict |> toImmutable
+
+        let funcs =
+            functions
+            |> Seq.map (fun (fd, fb) -> fd.Name, (fd, fb))
+            |> dict
+            |> toImmutable
+
+        { Variables = vars; Functions = funcs }
 
 [<AutoOpen>]
 module Context =
