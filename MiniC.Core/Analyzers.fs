@@ -223,35 +223,50 @@ let checkCollision (context: Scope) id =
     else
         Result.Ok id
 
-let analyzeVariable (analysisContext:Result<Scope, SemanticError list>) (var:Variable) =
-        let result =
-            var
-            |> nonVoidVariable
-        
-        match result, analysisContext with
-        | Result.Ok _, Result.Ok context -> var, checkCollision context var.Name |> Result.map (context.registerVariable)
-        | Result.Error err, Result.Error errors -> var, Result.Error <| errors @ [err]
-        | Result.Error err, _ -> var, Result.Error <| [ err ]
-        | _, Result.Error errors -> var, Result.Error <| errors
+let analyzeVariable
+    (analysisContext: Result<Scope, SemanticError list>)
+    (var: Variable)
+    : Variable * Result<Scope, SemanticError list> =
+    let result = var |> nonVoidVariable
 
-let funcSignatureAnalyzer (func:Function) (context:Scope) : Scope * Result<Function, SemanticError list> =
-    
+    match result, analysisContext with
+    | Result.Ok _, Result.Ok context ->
+        var,
+        checkCollision context var.Name
+        |> liftError
+        |> Result.map (fun i -> context.registerVariable var)
+    | Result.Error err, Result.Error errors -> var, Result.Error <| errors @ [ err ]
+    | Result.Error err, _ -> var, Result.Error <| [ err ]
+    | _, Result.Error errors -> var, Result.Error <| errors
+
+let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Function * Scope, SemanticError list> =
+
     let funcDecl, _ = func
-            
-    let a = monad.strict {
-        let! collision = checkCollision context funcDecl.Name
-        
-        let newContext = context.registerFunction func
-        let nestedContext = Function (newContext, Context.empty)
 
-        let errList: SemanticError list = []
-        let parameters, (newContext, errors) = Seq.mapFold analyzeVariable Result.Ok nestedContext funcDecl.Parameters    
-        
-        if (errors.Length > 0) then
-            return errors
-        else
-            return func
-    }
+    let checkFuncName =
+        monad.strict {
+            let! _ = checkCollision context funcDecl.Name |> liftError
+
+            return context.registerFunction func
+        }
+
+    let registerParams (ctx: Scope) =
+        let nestedContext = Function(ctx, Context.empty)
+        Seq.mapFold analyzeVariable (Result.Ok nestedContext)
+
+    let registerParameters func : Result<Scope, SemanticError list> =
+        monad.strict {
+            let! tempContext = checkFuncName
+
+            let _, resultContext =
+                registerParams tempContext func.Parameters
+
+            return! resultContext
+        }
+
+    match registerParameters funcDecl with
+    | Result.Ok scope -> Result.Ok(func, scope)
+    | Result.Error errors -> Result.Error errors
 
 let rec statementBlockAnalyzer
     (stList: Block)
@@ -262,15 +277,16 @@ let rec statementBlockAnalyzer
     let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError list> =
         let funcDecl, funcBody = func
 
-        if (isOk <| context.getVariable funcDecl.Name
-            || isOk <| context.getFunction funcDecl.Name) then
-            context, errorL <| IdentifierCollision(funcDecl.Name, "Identifier already in use")
-        else
-            let newContext = context.registerFunction func
-            let nestedContext = Function (newContext, Context.empty)
-            
-            let result = statementBlockAnalyzer funcBody nestedContext []
-            newContext, Result.Ok func
+        match funcSignatureAnalyzer func context with
+        | Result.Ok (f, innerContext) ->
+            let _, newScope, errors =
+                statementBlockAnalyzer funcBody innerContext []
+
+            if (errors.Length = 0) then
+                newScope, Result.Ok f
+            else
+                context, Result.Error errors
+        | Result.Error errors -> context, Result.Error errors
 
     let statementAnalyzer (statement: Statement) (context: Scope) : Scope * Result<Statement, SemanticError list> =
         match statement with
