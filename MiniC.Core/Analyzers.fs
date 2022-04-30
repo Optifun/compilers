@@ -331,6 +331,10 @@ let rec statementBlockAnalyzer
                 initializationAnalyzer i context
 
             newContext, liftAnalysis result Initialization
+        | VarDeclaration var ->
+            let newContext, result = analyzeVariable context var
+
+            newContext, liftAnalysis result VarDeclaration
         | FuncDeclaration func ->
             let newContext, result =
                 functionDeclAnalyzer func context
