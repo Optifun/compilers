@@ -170,8 +170,7 @@ let ``Calling function with incorrect parameters count`` () =
 
     let variable = varD ("abc", IntL)
 
-    let _statements: Statement list =
-        [ FuncDeclaration func ]
+    let _statements: Statement list = [ FuncDeclaration func ]
 
     let _scope = Context.create [] [ func ] |> Global
 
@@ -328,7 +327,8 @@ let ``Identifier collision within function body`` () =
         Context.create [ collidedVar ] [] |> Global
 
     let _errors: SemanticError list =
-        [ IdentifierCollision("bcd", "Identifier already in use") ]
+        [ IdentifierCollision("bcd", "Identifier already in use")
+          UnknownFunctionCall("f") ]
 
     let statements, scope, errors =
         runParser input programParser

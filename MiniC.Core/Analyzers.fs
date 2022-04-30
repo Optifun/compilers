@@ -111,7 +111,7 @@ let getError =
     | Result.Ok _ -> []
     | Result.Error e -> [ e ]
 
-let liftError: Result<'a, 'err> -> Result<'a, 'err list> =
+let liftError<'a, 'err> : Result<'a, 'err> -> Result<'a, 'err list> =
     Result.mapError (fun err -> [ err ])
 
 let liftAnalysisError (result: Result<'T, 'a>) (lift: 'T -> Statement) : Result<Statement, 'a list> =
@@ -132,12 +132,17 @@ let nonVoidVariable (var: Variable) =
 let matchTypeWith typeT (expr: Expression) (context: Scope) : Result<Expression, SemanticError> =
     match typeT, expr with
     | varType, Literal literal when varType = literal.GetTypeLiteral() -> Result.Ok expr
-    | varType, Call funcCall when
+    | varType, Call funcCall ->
+
         context.getFunction funcCall.FuncName
-        |> Result.map (fun f -> varType = funcRetType f)
-        |> Result.defaultValue false
-        ->
-        Result.Ok expr
+        |> Result.mapError (fun _ -> UnknownFunctionCall(funcCall.FuncName))
+        |> Result.bind (fun f ->
+            if (varType = funcRetType f) then
+                Result.Ok expr
+            else
+                Result.Error <| ExpectedType(typeT, expr)
+        )
+
     | varType, Identifier id when
         context.getVariable id
         |> Result.map (fun v -> varType = v.TypeDecl)
@@ -145,6 +150,13 @@ let matchTypeWith typeT (expr: Expression) (context: Scope) : Result<Expression,
         ->
         Result.Ok expr
     | _ -> Result.Error <| ExpectedType(typeT, expr)
+
+let matchVariableType var expr context =
+    matchTypeWith var.TypeDecl expr context
+    |> function
+        | Result.Ok _ -> Result.Ok var
+        | Result.Error (ExpectedType (typeT, expr)) -> Result.Error <| TypeMismatch(var, expr)
+        | Result.Error err -> Result.Error err
 
 let rec expressionAnalyzer (node: Expression) (context: Scope) : Result<Expression, SemanticError> =
 
@@ -204,6 +216,22 @@ let rec expressionAnalyzer (node: Expression) (context: Scope) : Result<Expressi
 
     visit node
 
+let checkCollision (context: Scope) id =
+    if (isOk <| context.getVariable id || isOk <| context.getFunction id) then
+        Result.Error <| IdentifierCollision(id, "Identifier already in use")
+    else
+        Result.Ok id
+
+let analyzeVariable (context: Scope) (var: Variable) : Scope * Result<Variable, SemanticError list> =
+    let nonVoid = var |> nonVoidVariable
+    let collision = checkCollision context var.Name
+
+    match nonVoid, collision with
+    | Result.Ok v, Result.Ok _ -> context.registerVariable v, Result.Ok v
+    | Result.Error err, Result.Ok _
+    | Result.Ok _, Result.Error err -> context, errorSingle err
+    | Result.Error err1, Result.Error err2 -> context, Result.Error [ err1; err2 ]
+
 
 let initializationAnalyzer
     (node: Initialization)
@@ -211,45 +239,37 @@ let initializationAnalyzer
     : Scope * Result<Initialization, SemanticError list> =
     let var, value = node
 
-    let newContext = context.registerVariable var
+    let newContext, analysis = analyzeVariable context var
 
-    let result =
-        expressionAnalyzer value context
-        |> Result.bind (fun exp -> matchTypeWith var.TypeDecl exp context)
-        |> Result.bindError (
-            function
-            | FunctionCallWrongParameters (d, b) -> errorSingle <| FunctionCallWrongParameters(d, b)
-            | ExpectedType _ -> errorSingle <| TypeMismatch(var, value)
-            | err ->
-                Result.Error [ err
-                               TypeMismatch(var, value) ]
-        )
+    let matchedType =
+        matchVariableType var value context |> liftError
 
-    match result with
-    | Result.Ok _ -> newContext, Result.Ok node
-    | Result.Error error -> context, Result.Error error
+    let validExpression = expressionAnalyzer value context
 
-let checkCollision (context: Scope) id =
-    if (isOk <| context.getVariable id || isOk <| context.getFunction id) then
-        Result.Error <| IdentifierCollision(id, "Identifier already in use")
-    else
-        Result.Ok id
+    let _, tempErrors =
+        Result.partition [ analysis
+                           matchedType ]
 
-let analyzeVariable
+    let errors = tempErrors |> List.collect (fun t -> t)
+
+    match errors, validExpression with
+    | [], Result.Ok _ -> newContext, Result.Ok node
+    | [], Result.Error err -> context, Result.Error <| [ err ]
+    | err, _ -> context, Result.Error err
+
+let analyzeVariableChaining
     (analysisContext: Result<Scope, SemanticError list>)
     (var: Variable)
     : Variable * Result<Scope, SemanticError list> =
-    let result = var |> nonVoidVariable
 
-    match result, analysisContext with
-    | Result.Ok _, Result.Ok context ->
-        var,
-        checkCollision context var.Name
-        |> liftError
-        |> Result.map (fun i -> context.registerVariable var)
-    | Result.Error err, Result.Error errors -> var, Result.Error <| errors @ [ err ]
-    | Result.Error err, _ -> var, Result.Error <| [ err ]
-    | _, Result.Error errors -> var, Result.Error <| errors
+    match analysisContext with
+    | Result.Error err -> var, Result.Error err
+    | Result.Ok context ->
+        let newScope, ret = analyzeVariable context var
+
+        match ret with
+        | Result.Ok var -> var, Result.Ok newScope
+        | Result.Error err -> var, Result.Error err
 
 let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Scope * Scope, SemanticError list> =
 
@@ -264,7 +284,7 @@ let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Scope * Sco
 
     let registerParams (ctx: Scope) =
         let nestedContext = Function(ctx, Context.empty)
-        Seq.mapFold analyzeVariable (Result.Ok nestedContext)
+        Seq.mapFold analyzeVariableChaining (Result.Ok nestedContext)
 
     let registerParameters func : Result<Scope * Scope, SemanticError list> =
         monad.strict {
