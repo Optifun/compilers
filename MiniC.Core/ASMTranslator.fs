@@ -4,6 +4,7 @@ open FSharpPlus
 open FSharpPlus.Data
 open MiniC.Core.ASMTokens
 open MiniC.Core.AST
+open MiniC.Core.Analyzers
 
 let rec collectVariables statements : ASMTokens.Variable list =
     statements
@@ -76,19 +77,23 @@ let translateFunction (func: Function) (statementSolver: Statement -> AToken lis
     [ label
       FunctionBlock <| popParameters @ instructions ]
 
-let rec translateStatement =
+let rec translateStatement (globalScope: Context) =
     function
-    | Expression (Call func) -> failwith "not implemented"
+    | Expression (Call func) ->
+        let head, _ =
+            globalScope.getFunction func.FuncName |> Result.get
+
+        translateCall func head.ReturnType
     | Initialization i -> failwith "not implemented"
     | VarDeclaration var -> []
-    | FuncDeclaration func -> translateFunction func translateStatement
+    | FuncDeclaration func -> translateFunction func (translateStatement globalScope)
     | st -> failwith "not allowed"
 
 let programTranslator statements globalScope : AToken list * ASMTokens.Variable list =
     let variables = collectVariables statements
 
     let tokens =
-        statements |> List.collect translateStatement
+        statements |> List.collect (translateStatement globalScope)
 
 
     tokens, variables
