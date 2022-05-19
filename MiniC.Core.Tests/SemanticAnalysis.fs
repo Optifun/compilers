@@ -46,6 +46,10 @@ let ``Initialisation type mismatch`` () =
         |> Result.map programAnalyzer
         |> Result.get
 
+    TestContext.Out.WriteLine(sprintf "Errors = %A" errors)
+    TestContext.Out.WriteLine(sprintf "Scope = %A" scope)
+    TestContext.Out.WriteLine(sprintf "Program = %A" statements)
+
     statements |> should equal _statements
     errors |> should equal _errors
     scope |> should equal _scope
@@ -170,7 +174,8 @@ let ``Calling function with incorrect parameters count`` () =
 
     let variable = varD ("abc", IntL)
 
-    let _statements: Statement list = [ FuncDeclaration func ]
+    let _statements: Statement list =
+        [ FuncDeclaration func ]
 
     let _scope = Context.create [] [ func ] |> Global
 
@@ -182,6 +187,10 @@ let ``Calling function with incorrect parameters count`` () =
         |> toResult
         |> Result.map programAnalyzer
         |> Result.get
+
+    TestContext.Out.WriteLine(sprintf "Errors = %A" errors)
+    TestContext.Out.WriteLine(sprintf "Scope = %A" scope)
+    TestContext.Out.WriteLine(sprintf "Program = %A" statements)
 
     statements |> should equal _statements
     errors |> should equal _errors
@@ -285,6 +294,10 @@ let ``Calling function with inner declarations`` () =
         |> Result.map programAnalyzer
         |> Result.get
 
+    TestContext.Out.WriteLine(sprintf "Errors = %A" errors)
+    TestContext.Out.WriteLine(sprintf "Scope = %A" scope)
+    TestContext.Out.WriteLine(sprintf "Program = %A" statements)
+
     statements |> should equal _statements
     errors |> should equal _errors
     scope |> should equal _scope
@@ -335,6 +348,11 @@ let ``Identifier collision within function body`` () =
         |> toResult
         |> Result.map programAnalyzer
         |> Result.get
+
+
+    TestContext.Out.WriteLine(sprintf "Errors = %A" errors)
+    TestContext.Out.WriteLine(sprintf "Scope = %A" scope)
+    TestContext.Out.WriteLine(sprintf "Program = %A" statements)
 
     errors |> should equal _errors
     statements |> should equal _statements
