@@ -12,6 +12,8 @@
         <Compile Include="Parsers.fs" />
         <Compile Include="SemanticError.fs" />
         <Compile Include="Analyzers.fs" />
+        <Compile Include="ASMTokens.fs" />
+        <Compile Include="ASMTranslator.fs" />
     </ItemGroup>
 
     <ItemGroup>
