@@ -11,13 +11,17 @@ type Register =
 
     static member all () = [ AX; BX; CX; DX; CI ]
 
+type BSize =
+    | WORD
+    | DWORD
+
 type Variable = Identifier
+type VariableDecl = Identifier * BSize
 
 type Literal =
     | HexInt of int
     | HexFloat of double
     | Bool of bool
-
 
 type StackOperand =
     | Register of Register
@@ -33,12 +37,13 @@ type Value =
     | Literal of Literal
 
 type AToken =
-    | Call of Identifier
     | Push of StackOperand
     | Pop of Register
     | Mov of ValueHolder * Value
+    | Call of Identifier
     | Label of Identifier
-    | FunctionBlock of FunctionBlock
+    | Function of Identifier * FunctionParams * FunctionBlock
     | Return of StackOperand
 
+and FunctionParams = VariableDecl list
 and FunctionBlock = AToken list
