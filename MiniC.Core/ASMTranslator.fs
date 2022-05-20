@@ -75,49 +75,42 @@ let save register = Push(StackOperand.Register register)
 
 let load register = Pop register
 
-let translateCall (func: FunctionCall) : AToken list =
-    let goto = [ AToken.Call func.FuncName ]
 
-    let passArguments =
-        func.Arguments
-        |> List.collect (
-            function
-            | Literal (Boolean b) -> pushLiteral <| Bool b
-            | Literal (IntNumber i) -> pushLiteral <| HexInt i
-            | Literal (FloatNumber f) -> pushLiteral <| HexFloat f
-            | Identifier id -> pushIdentifier id AX
-            | _ -> failwith "not implemented"
-        )
 
-    passArguments @ goto
 let funcResultVariable (scope: Scope) id =
     let head, _ = scope.getFunction id |> Result.get
 
     resultVariable head
 
-let translateParameter param (globalContext: Scope) =
+let rec translateCall (scope: Scope) (func: FunctionCall) : AToken list =
 
-    let guardCall (func: FunctionCall) =
+    let preformCall (func: FunctionCall) (tempVariable: VariableDecl option) =
+        let translateParameter param =
+            param
+            |> function
+                | Literal l -> pushLiteral <| asmLiteral l
+                | Identifier id -> [ save BX ] @ pushIdentifier id BX @ [ load BX ]
+                | Call func -> translateCall scope func
+                | _ -> failwith "not implemented"
+
         monad.plus {
-            let! funcDecl = globalContext.getFunction func.FuncName
-            let head, _ = funcDecl
+            yield! saveRegisters
 
-            return saveRegisters
+            yield! func.Arguments |> List.collect translateParameter
 
-            if head.ReturnType <> TypeLiteral.VoidL then
-                [ Pop DX ]
-            else
-                []
+            yield! [ AToken.Call func.FuncName ]
 
-            return loadRegisters
+            yield!
+                tempVariable
+                |> Option.map (fun (id, _) -> popIdentifier id DX @ loadRegisters @ pushIdentifier id DX)
+                |> Option.defaultValue loadRegisters
         }
 
-    param
-    |> function
-        | Literal l -> pushLiteral <| asmLiteral l
-        | Identifier id -> [ save BX ] @ pushIdentifier id BX @ [ load BX ]
-        | Call func -> guardCall func |> Result.get
 
+    let tempVariable =
+        funcResultVariable scope func.FuncName
+
+    preformCall func tempVariable
 
 let translateFunction (func: Function) (statementSolver: Statement -> AToken list) : AToken list =
     let head, body = func
@@ -133,11 +126,7 @@ let translateFunction (func: Function) (statementSolver: Statement -> AToken lis
 
 let rec translateStatement (globalScope: Scope) =
     function
-    | Expression (Call func) ->
-        let head, _ =
-            globalScope.getFunction func.FuncName |> Result.get
-
-        translateCall func head.ReturnType
+    | Expression (Call func) -> translateCall globalScope func
     | Initialization i -> failwith "not implemented"
     | VarDeclaration var -> []
     | FuncDeclaration func -> translateFunction func (translateStatement globalScope)
