@@ -112,6 +112,23 @@ let rec translateCall (scope: Scope) (func: FunctionCall) : AToken list =
 
     preformCall func tempVariable
 
+let returnFunctionCall scope funcCall =
+    let callFunction = translateCall scope funcCall
+
+    let getResult =
+        funcResultVariable scope funcCall.FuncName
+        |> Option.map (fun (name, _) -> pushIdentifier name DX)
+        |> Option.defaultValue []
+
+    callFunction @ getResult @ returnValue (StackOperand.Register DX)
+
+let translateReturn (scope: Scope) =
+    function
+    | Literal l -> returnValue << StackOperand.Literal << asmLiteral <| l
+    | Identifier id -> [ save BX ] @ returnIdentifier id BX @ [ load BX ]
+    | Call call -> returnFunctionCall scope call
+    | _ -> failwith "not implemented"
+
 let translateFunction (func: Function) (statementSolver: Statement -> AToken list) : AToken list =
     let head, body = func
 
@@ -129,6 +146,7 @@ let rec translateStatement (globalScope: Scope) =
     | Expression (Call func) -> translateCall globalScope func
     | Initialization i -> failwith "not implemented"
     | VarDeclaration var -> []
+    | Return value -> translateReturn globalScope value
     | FuncDeclaration func -> translateFunction func (translateStatement globalScope)
     | st -> failwith $"not allowed %A{st}"
 
