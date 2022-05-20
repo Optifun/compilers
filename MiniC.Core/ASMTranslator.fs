@@ -23,20 +23,32 @@ let rec collectVariables statements : ASMTokens.Variable list =
     |> List.collect id
 
 
-let translateCall (func: FunctionCall) (returnType: TypeLiteral) : AToken list =
-    let goto = [ Label func.FuncName ]
+let asmLiteral: Literal -> ASMTokens.Literal =
+    function
+    | Literal.Boolean b -> Bool b
+    | Literal.IntNumber i -> HexInt i
+    | Literal.FloatNumber f -> HexFloat f
+    | _ -> failwith "not allowed"
 
-    let saveRegisters =
-        Register.all () |> List.map (StackOperand.Register >> Push)
+let saveRegisters =
+    Register.all () |> List.map (StackOperand.Register >> Push)
 
-    let loadRegisters = Register.all () |> List.map Pop
+let loadRegisters = Register.all () |> List.map Pop
 
-    let pushLiteral =
-        List.singleton << Push << StackOperand.Literal
+let pushLiteral =
+    List.singleton << Push << StackOperand.Literal
 
-    let pushIdentifier id =
-        [ Mov(ValueHolder.Register AX, Variable id)
-          Push(StackOperand.Register AX) ]
+let pushIdentifier id register =
+    [ Mov(ValueHolder.Register register, Variable id)
+      Push(StackOperand.Register register) ]
+
+
+let save register = Push(StackOperand.Register register)
+
+let load register = Pop register
+
+let translateCall (func: FunctionCall) : AToken list =
+    let goto = [ AToken.Call func.FuncName ]
 
     let passArguments =
         func.Arguments
@@ -45,17 +57,35 @@ let translateCall (func: FunctionCall) (returnType: TypeLiteral) : AToken list =
             | Literal (Boolean b) -> pushLiteral <| Bool b
             | Literal (IntNumber i) -> pushLiteral <| HexInt i
             | Literal (FloatNumber f) -> pushLiteral <| HexFloat f
-            | Identifier id -> pushIdentifier id
+            | Identifier id -> pushIdentifier id AX
             | _ -> failwith "not implemented"
         )
 
-    let getResult =
-        if returnType <> TypeLiteral.VoidL then
-            [ Pop DX ]
-        else
-            []
+    passArguments @ goto
 
-    saveRegisters @ passArguments @ goto @ getResult @ loadRegisters
+
+let translateParameter param (globalContext: Scope) =
+
+    let guardCall (func: FunctionCall) =
+        monad.plus {
+            let! funcDecl = globalContext.getFunction func.FuncName
+            let head, _ = funcDecl
+
+            return saveRegisters
+
+            if head.ReturnType <> TypeLiteral.VoidL then
+                [ Pop DX ]
+            else
+                []
+
+            return loadRegisters
+        }
+
+    param
+    |> function
+        | Literal l -> pushLiteral <| asmLiteral l
+        | Identifier id -> [ save BX ] @ pushIdentifier id BX @ [ load BX ]
+        | Call func -> guardCall func |> Result.get
 
 
 let translateFunction (func: Function) (statementSolver: Statement -> AToken list) : AToken list =
@@ -77,7 +107,7 @@ let translateFunction (func: Function) (statementSolver: Statement -> AToken lis
     [ label
       FunctionBlock <| popParameters @ instructions ]
 
-let rec translateStatement (globalScope: Context) =
+let rec translateStatement (globalScope: Scope) =
     function
     | Expression (Call func) ->
         let head, _ =
@@ -87,7 +117,7 @@ let rec translateStatement (globalScope: Context) =
     | Initialization i -> failwith "not implemented"
     | VarDeclaration var -> []
     | FuncDeclaration func -> translateFunction func (translateStatement globalScope)
-    | st -> failwith "not allowed"
+    | st -> failwith $"not allowed %A{st}"
 
 let programTranslator statements globalScope : AToken list * ASMTokens.Variable list =
     let variables = collectVariables statements
