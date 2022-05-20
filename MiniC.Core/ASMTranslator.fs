@@ -6,18 +6,37 @@ open MiniC.Core.ASMTokens
 open MiniC.Core.AST
 open MiniC.Core.Analyzers
 
-let rec collectVariables statements : ASMTokens.Variable list =
+let asmType =
+    function
+    | IntL
+    | BoolL -> BSize.WORD
+    | FloatL -> BSize.DWORD
+    | _ -> failwith "not supported type"
+
+let resultVariable func : VariableDecl option =
+    if (func.ReturnType <> VoidL) then
+        Some(func.Name, asmType func.ReturnType)
+    else
+        None
+
+let rec collectVariables statements : ASMTokens.VariableDecl list =
     statements
     |> List.choose (
         function
-        | VarDeclaration var -> Some [ var.Name ]
-        | Initialization (var, _) -> Some [ var.Name ]
+        | VarDeclaration var -> Some [ var.Name, asmType var.TypeDecl ]
+        | Initialization (var, _) -> Some [ var.Name, asmType var.TypeDecl ]
         | FuncDeclaration (head, body) ->
+            let resultVar: VariableDecl list =
+                resultVariable head
+                |> Option.map (List.singleton << id)
+                |> Option.defaultValue []
+
             let parameters =
-                head.Parameters |> List.map (fun p -> p.Name)
+                head.Parameters |> List.map (fun p -> p.Name, asmType p.TypeDecl)
 
             let localVariables = collectVariables body
-            Some <| parameters @ localVariables
+
+            Some <| resultVar @ parameters @ localVariables
         | _ -> None
     )
     |> List.collect id
@@ -38,10 +57,19 @@ let loadRegisters = Register.all () |> List.map Pop
 let pushLiteral =
     List.singleton << Push << StackOperand.Literal
 
+let popIdentifier id register =
+    [ Pop <| DX
+      Mov(ValueHolder.Variable id, Register register) ]
+
 let pushIdentifier id register =
     [ Mov(ValueHolder.Register register, Variable id)
       Push(StackOperand.Register register) ]
 
+let returnValue = List.singleton << AToken.Return
+
+let returnIdentifier id register =
+    [ Mov(ValueHolder.Register register, Variable id)
+      AToken.Return(StackOperand.Register register) ]
 
 let save register = Push(StackOperand.Register register)
 
@@ -62,7 +90,10 @@ let translateCall (func: FunctionCall) : AToken list =
         )
 
     passArguments @ goto
+let funcResultVariable (scope: Scope) id =
+    let head, _ = scope.getFunction id |> Result.get
 
+    resultVariable head
 
 let translateParameter param (globalContext: Scope) =
 
@@ -90,22 +121,15 @@ let translateParameter param (globalContext: Scope) =
 
 let translateFunction (func: Function) (statementSolver: Statement -> AToken list) : AToken list =
     let head, body = func
-    let label = Label head.Name
 
+    let parameters: VariableDecl list =
+        head.Parameters |> List.map (fun p -> p.Name, asmType p.TypeDecl)
 
-    let popParameters =
-        head.Parameters
-        |> List.rev
-        |> List.collect (fun p ->
-            [ Pop DX
-              Mov(ValueHolder.Variable p.Name, Register DX) ]
-        )
-
-    let instructions =
+    let instructions: FunctionBlock =
         body |> List.collect statementSolver
 
-    [ label
-      FunctionBlock <| popParameters @ instructions ]
+
+    [ (AToken.Function(head.Name, parameters, instructions)) ]
 
 let rec translateStatement (globalScope: Scope) =
     function
@@ -119,7 +143,7 @@ let rec translateStatement (globalScope: Scope) =
     | FuncDeclaration func -> translateFunction func (translateStatement globalScope)
     | st -> failwith $"not allowed %A{st}"
 
-let programTranslator statements globalScope : AToken list * ASMTokens.Variable list =
+let programTranslator statements globalScope : AToken list * VariableDecl list =
     let variables = collectVariables statements
 
     let tokens =
