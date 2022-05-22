@@ -11,6 +11,14 @@ type Register =
 
     static member all () = [ AX; BX; CX; DX; CI ]
 
+    override x.ToString () =
+        match x with
+        | AX -> "AX"
+        | BX -> "BX"
+        | CX -> "CX"
+        | DX -> "DX"
+        | CI -> "CI"
+
 type BSize =
     | WORD
     | DWORD

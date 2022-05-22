@@ -1,7 +1,11 @@
 ﻿module MiniC.Core.ASMTranslator
 
+open System
 open FSharpPlus
 open FSharpPlus.Data
+open MiniC.Core.ASMTokens
+open MiniC.Core.ASMTokens
+open MiniC.Core.ASMTokens
 open MiniC.Core.ASMTokens
 open MiniC.Core.AST
 open MiniC.Core.Analyzers
@@ -65,6 +69,10 @@ let pushIdentifier id register =
     [ Mov(ValueHolder.Register register, Variable id)
       Push(StackOperand.Register register) ]
 
+let copyTo source destination register =
+    [ Mov(ValueHolder.Register register, Variable source)
+      Mov(ValueHolder.Variable destination, Register register) ]
+
 let returnValue = List.singleton << AToken.Return
 
 let returnIdentifier id register =
@@ -82,6 +90,7 @@ let funcResultVariable (scope: Scope) id =
 
     resultVariable head
 
+/// Pushes saves all registers, parameters on stack,
 let rec translateCall (scope: Scope) (func: FunctionCall) : AToken list =
 
     let preformCall (func: FunctionCall) (tempVariable: VariableDecl option) =
@@ -122,6 +131,8 @@ let returnFunctionCall scope funcCall =
 
     callFunction @ getResult @ returnValue (StackOperand.Register DX)
 
+let passResult variable funcName = copyTo funcName variable AX
+
 let translateReturn (scope: Scope) =
     function
     | Literal l -> returnValue << StackOperand.Literal << asmLiteral <| l
@@ -141,17 +152,30 @@ let translateFunction (func: Function) (statementSolver: Statement -> AToken lis
 
     [ (AToken.Function(head.Name, parameters, instructions)) ]
 
+let translateInitialization scope variable value =
+    value
+    |> function
+        | Call func ->
+            let callFunction = translateCall scope func
+            let getResult = popIdentifier variable.Name DX
+
+            callFunction @ getResult
+        | Literal l -> [ Mov(ValueHolder.Variable variable.Name, Value.Literal <| asmLiteral l) ]
+        | Identifier d -> passResult variable.Name d
+        | _ -> failwith "not allowed"
+
 let rec translateStatement (globalScope: Scope) =
     function
     | Expression (Call func) -> translateCall globalScope func
-    | Initialization i -> failwith "not implemented"
+    | Initialization (var, value) -> translateInitialization globalScope var value
     | VarDeclaration var -> []
     | Return value -> translateReturn globalScope value
     | FuncDeclaration func -> translateFunction func (translateStatement globalScope)
     | st -> failwith $"not allowed %A{st}"
 
-let programTranslator statements globalScope : AToken list * VariableDecl list =
-    let variables = collectVariables statements
+let programTranslator statements globalScope : AToken list * VariableDecl Set =
+    let variables =
+        Set.ofList <| collectVariables statements
 
     let tokens =
         statements |> List.collect (translateStatement globalScope)
