@@ -51,6 +51,7 @@ let ``Initialize variable with literal`` () =
     |> function
         | Result.Error msg -> failwith msg
         | Result.Ok (code, vars) ->
+            TestContext.Out.WriteLine(printTokens code)
             code |> should equal tokens
             vars |> should equal variables
 
@@ -77,6 +78,7 @@ let ``Initialize variable with variable`` () =
     |> function
         | Result.Error msg -> failwith msg
         | Result.Ok (code, vars) ->
+            TestContext.Out.WriteLine(printTokens code)
             code |> should equal tokens
             vars |> should equal variables
 
@@ -115,5 +117,6 @@ let ``Calling function`` () =
     |> function
         | Result.Error msg -> failwith msg
         | Result.Ok (code, vars) ->
+            TestContext.Out.WriteLine(printTokens code)
             code |> should equal tokens
             vars |> should equal variables

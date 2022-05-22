@@ -182,3 +182,56 @@ let programTranslator statements globalScope : AToken list * VariableDecl Set =
 
 
     tokens, variables
+
+let rec stringify tokens =
+
+    let printLiteral =
+        function
+        | Literal.HexFloat f -> f.ToString()
+        | Literal.HexInt i -> i.ToString()
+        | Literal.Bool b -> if b then "TRUE" else "FALSE"
+
+    let printStackOP =
+        function
+        | StackOperand.Literal l -> printLiteral l
+        | StackOperand.Register r -> r.ToString()
+
+    let printValueHolder =
+        function
+        | ValueHolder.Register r -> r.ToString()
+        | ValueHolder.Variable v -> v
+
+    let printValue =
+        function
+        | Value.Register r -> r.ToString()
+        | Value.Variable v -> v
+        | Value.Literal l -> printLiteral l
+
+    let printArguments arguments =
+        arguments
+        |> function
+            | [] -> ""
+            | args ->
+                let content =
+                    args |> List.map (fun (n, t) -> $"{n}: {t}") |> List.intersperse ", "
+
+                [ "(" ] @ content @ [ ")" ] |> String.concat ""
+
+    let tabify =
+        List.map (fun str -> String.replicate 1 "\t" + str)
+
+    tokens
+    |> List.collect (
+        function
+        | AToken.Mov (src, dest) -> [ $"MOV {printValueHolder src} {printValue dest}" ]
+        | AToken.Return st -> [ $"RETURN {printStackOP st}" ]
+        | AToken.Call fn -> [ $"CALL {fn}" ]
+        | AToken.Pop r -> [ $"POP {r}" ]
+        | AToken.Push v -> [ $"PUSH {printStackOP v}" ]
+        | AToken.Function (name, arguments, block) ->
+            [ $"{name} {printArguments arguments} PROC FAR" ]
+            @ tabify (stringify block) @ [ $"{name} ENDP"; "" ]
+        | _ -> failwith "not implemented"
+    )
+
+let printTokens tokens = stringify tokens |> String.concat "\r\n"
