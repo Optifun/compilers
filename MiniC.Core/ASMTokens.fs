@@ -22,6 +22,10 @@ type Register =
 type BSize =
     | WORD
     | DWORD
+    override x.ToString () =
+        match x with
+        | WORD -> "DH"
+        | DWORD -> "DW"
 
 type Variable = Identifier
 type VariableDecl = Identifier * BSize

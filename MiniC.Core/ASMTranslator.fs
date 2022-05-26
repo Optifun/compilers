@@ -235,3 +235,17 @@ let rec stringify tokens =
     )
 
 let printTokens tokens = stringify tokens |> String.concat "\r\n"
+
+let declareVariables (vars: VariableDecl Set) =
+    vars
+    |> Seq.map (fun (name, size) -> $"{name}\t{size}\t0;")
+    |> String.concat "\r\n"
+
+let printProgram tokens vars =
+    """
+.model LARGE;
+"""
+    + "\r\n\r\n.data\r\n"
+    + declareVariables vars
+    + "\r\n\r\n.code\r\n"
+    + printTokens tokens
