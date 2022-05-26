@@ -187,8 +187,8 @@ let rec stringify tokens =
 
     let printLiteral =
         function
-        | Literal.HexFloat f -> f.ToString()
-        | Literal.HexInt i -> i.ToString()
+        | Literal.HexFloat f -> f.ToString("R")
+        | Literal.HexInt i -> i.ToString("X2")
         | Literal.Bool b -> if b then "TRUE" else "FALSE"
 
     let printStackOP =
@@ -238,7 +238,7 @@ let printTokens tokens = stringify tokens |> String.concat "\r\n"
 
 let declareVariables (vars: VariableDecl Set) =
     vars
-    |> Seq.map (fun (name, size) -> $"{name}\t{size}\t0;")
+    |> Seq.map (fun (name, size) -> $"{name}\t{size}\t00;")
     |> String.concat "\r\n"
 
 let printProgram tokens vars =
