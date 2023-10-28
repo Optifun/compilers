@@ -9,9 +9,9 @@ type Register =
     | DX
     | CI
 
-    static member all () = [ AX; BX; CX; DX; CI ]
+    static member all() = [ AX; BX; CX; DX; CI ]
 
-    override x.ToString () =
+    override x.ToString() =
         match x with
         | AX -> "AX"
         | BX -> "BX"
@@ -22,7 +22,8 @@ type Register =
 type BSize =
     | WORD
     | DWORD
-    override x.ToString () =
+
+    override x.ToString() =
         match x with
         | WORD -> "DH"
         | DWORD -> "DW"

@@ -1,11 +1,7 @@
 ﻿module MiniC.Core.ASMTranslator
 
-open System
 open FSharpPlus
 open FSharpPlus.Data
-open MiniC.Core.ASMTokens
-open MiniC.Core.ASMTokens
-open MiniC.Core.ASMTokens
 open MiniC.Core.ASMTokens
 open MiniC.Core.AST
 open MiniC.Core.Analyzers
@@ -18,31 +14,26 @@ let asmType =
     | _ -> failwith "not supported type"
 
 let resultVariable func : VariableDecl option =
-    if (func.ReturnType <> VoidL) then
-        Some(func.Name, asmType func.ReturnType)
-    else
-        None
+    if (func.ReturnType <> VoidL) then Some(func.Name, asmType func.ReturnType) else None
 
-let rec collectVariables statements : ASMTokens.VariableDecl list =
+let rec collectVariables statements : VariableDecl list =
+
+    let collectFunctionVariables head body =
+        let resultVar: VariableDecl list =
+            resultVariable head |> Option.map (List.singleton << id) |> Option.defaultValue []
+
+        let parameters = head.Parameters |> List.map (fun p -> p.Name, asmType p.TypeDecl)
+
+        let localVariables = collectVariables body
+
+        resultVar @ parameters @ localVariables
+
     statements
-    |> List.choose (
-        function
+    |> List.choose (function
         | VarDeclaration var -> Some [ var.Name, asmType var.TypeDecl ]
-        | Initialization (var, _) -> Some [ var.Name, asmType var.TypeDecl ]
-        | FuncDeclaration (head, body) ->
-            let resultVar: VariableDecl list =
-                resultVariable head
-                |> Option.map (List.singleton << id)
-                |> Option.defaultValue []
-
-            let parameters =
-                head.Parameters |> List.map (fun p -> p.Name, asmType p.TypeDecl)
-
-            let localVariables = collectVariables body
-
-            Some <| resultVar @ parameters @ localVariables
-        | _ -> None
-    )
+        | Initialization(var, _) -> Some [ var.Name, asmType var.TypeDecl ]
+        | FuncDeclaration(head, body) -> Some <| collectFunctionVariables head body
+        | _ -> None)
     |> List.collect id
 
 
@@ -51,23 +42,17 @@ let asmLiteral: Literal -> ASMTokens.Literal =
     | Literal.Boolean b -> Bool b
     | Literal.IntNumber i -> HexInt i
     | Literal.FloatNumber f -> HexFloat f
-    | _ -> failwith "not allowed"
 
-let saveRegisters =
-    Register.all () |> List.map (StackOperand.Register >> Push)
+let saveRegisters = Register.all () |> List.map (StackOperand.Register >> Push)
 
 let loadRegisters = Register.all () |> List.map Pop
 
-let pushLiteral =
-    List.singleton << Push << StackOperand.Literal
+let pushLiteral = StackOperand.Literal >> Push >> List.singleton
 
-let popIdentifier id register =
-    [ Pop <| DX
-      Mov(ValueHolder.Variable id, Register register) ]
+let popIdentifier id register = [ Pop <| DX; Mov(ValueHolder.Variable id, Register register) ]
 
 let pushIdentifier id register =
-    [ Mov(ValueHolder.Register register, Variable id)
-      Push(StackOperand.Register register) ]
+    [ Mov(ValueHolder.Register register, Variable id); Push(StackOperand.Register register) ]
 
 let copyTo source destination register =
     [ Mov(ValueHolder.Register register, Variable source)
@@ -111,13 +96,13 @@ let rec translateCall (scope: Scope) (func: FunctionCall) : AToken list =
 
             yield!
                 tempVariable
-                |> Option.map (fun (id, _) -> popIdentifier id DX @ loadRegisters @ pushIdentifier id DX)
+                |> Option.map (fun (id, _) ->
+                    popIdentifier id DX @ loadRegisters @ pushIdentifier id DX)
                 |> Option.defaultValue loadRegisters
         }
 
 
-    let tempVariable =
-        funcResultVariable scope func.FuncName
+    let tempVariable = funcResultVariable scope func.FuncName
 
     preformCall func tempVariable
 
@@ -146,8 +131,7 @@ let translateFunction (func: Function) (statementSolver: Statement -> AToken lis
     let parameters: VariableDecl list =
         head.Parameters |> List.map (fun p -> p.Name, asmType p.TypeDecl)
 
-    let instructions: FunctionBlock =
-        body |> List.collect statementSolver
+    let instructions: FunctionBlock = body |> List.collect statementSolver
 
 
     [ (AToken.Function(head.Name, parameters, instructions)) ]
@@ -166,19 +150,17 @@ let translateInitialization scope variable value =
 
 let rec translateStatement (globalScope: Scope) =
     function
-    | Expression (Call func) -> translateCall globalScope func
-    | Initialization (var, value) -> translateInitialization globalScope var value
+    | Expression(Call func) -> translateCall globalScope func
+    | Initialization(var, value) -> translateInitialization globalScope var value
     | VarDeclaration var -> []
     | Return value -> translateReturn globalScope value
     | FuncDeclaration func -> translateFunction func (translateStatement globalScope)
     | st -> failwith $"not allowed %A{st}"
 
 let programTranslator statements globalScope : AToken list * VariableDecl Set =
-    let variables =
-        Set.ofList <| collectVariables statements
+    let variables = Set.ofList <| collectVariables statements
 
-    let tokens =
-        statements |> List.collect (translateStatement globalScope)
+    let tokens = statements |> List.collect (translateStatement globalScope)
 
 
     tokens, variables
@@ -212,34 +194,29 @@ let rec stringify tokens =
         |> function
             | [] -> ""
             | args ->
-                let content =
-                    args |> List.map (fun (n, t) -> $"{n}: {t}") |> List.intersperse ", "
+                let content = args |> List.map (fun (n, t) -> $"{n}: {t}") |> List.intersperse ", "
 
                 [ "(" ] @ content @ [ ")" ] |> String.concat ""
 
-    let tabify =
-        List.map (fun str -> String.replicate 1 "\t" + str)
+    let tabify = List.map (fun str -> String.replicate 1 "\t" + str)
 
     tokens
-    |> List.collect (
-        function
-        | AToken.Mov (src, dest) -> [ $"MOV {printValueHolder src} {printValue dest}" ]
+    |> List.collect (function
+        | AToken.Mov(src, dest) -> [ $"MOV {printValueHolder src} {printValue dest}" ]
         | AToken.Return st -> [ $"RETURN {printStackOP st}" ]
         | AToken.Call fn -> [ $"CALL {fn}" ]
         | AToken.Pop r -> [ $"POP {r}" ]
         | AToken.Push v -> [ $"PUSH {printStackOP v}" ]
-        | AToken.Function (name, arguments, block) ->
+        | AToken.Function(name, arguments, block) ->
             [ $"{name} {printArguments arguments} PROC FAR" ]
-            @ tabify (stringify block) @ [ $"{name} ENDP"; "" ]
-        | _ -> failwith "not implemented"
-    )
+            @ tabify (stringify block)
+            @ [ $"{name} ENDP" ]
+        | _ -> failwith "not implemented")
 
 let printTokens tokens = stringify tokens |> String.concat "\r\n"
 
 let declareVariables (vars: VariableDecl Set) =
-    vars
-    |> Seq.map (fun (name, size) -> $"{name}\t{size}\t00;")
-    |> String.concat "\r\n"
+    vars |> Seq.map (fun (name, size) -> $"{name}\t{size}\t00;") |> String.concat "\r\n"
 
 let printProgram tokens vars =
     """

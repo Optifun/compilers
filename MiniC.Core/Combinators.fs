@@ -3,6 +3,7 @@
 open System
 open FSharpPlus
 open FParsec
+open Microsoft.FSharp.Core
 open MiniC.Core.AST
 open MiniC.Core.Error
 
@@ -15,14 +16,12 @@ let whitespaced =
     }
 
 let wslr: Parser<unit, _> =
-    skipMany (skipAnyOf whitespaced <|> skipNewline)
-    <??> "Whitespace characters"
+    skipMany (skipAnyOf whitespaced <|> skipNewline) <??> "Whitespace characters"
 
 let ws1 = skipMany1 (skipChar ' ')
 
 let wslr1: Parser<unit, obj> =
-    skipMany1 (skipAnyOf whitespaced <|> skipNewline)
-    <??> "Whitespace1 characters"
+    skipMany1 (skipAnyOf whitespaced <|> skipNewline) <??> "Whitespace1 characters"
 
 let l str = pstring str
 
@@ -64,8 +63,11 @@ let mapResultToReply msg res =
 module Lexem =
 
 
-    let typeLexemParser (t: TypeLiteral) : Parser<TypeLiteral, _> = genericParser t <??> "Type lexem"
-    let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, _> = genericParser op <??> "Binary operator"
+    let typeLexemParser (t: TypeLiteral) : Parser<TypeLiteral, _> =
+        genericParser t <??> "Type lexem"
+
+    let operatorLexemParser (op: BinaryOp) : Parser<BinaryOp, _> =
+        genericParser op <??> "Binary operator"
 
 
     let operatorLexems: Parser<BinaryOp, _> list =
@@ -75,42 +77,24 @@ module Lexem =
         [ IntL; BoolL; FloatL; VoidL ] |> List.map typeLexemParser
 
     let delimiterLexems: Parser<Keyword, string> list =
-        [ ";"
-          "."
-          ","
-          "("
-          ")"
-          "{"
-          "}"
-          "["
-          "]" ]
+        [ ";"; "."; ","; "("; ")"; "{"; "}"; "["; "]" ]
         |> List.map (fun lexem -> l lexem |>> Keyword.Delimiter)
 
     let keywordLexems: Parser<Keyword, string> list =
-        [ "if"
-          "while"
-          "else"
-          "for"
-          "break"
-          "return" ]
-        |> List.zip [ Keyword.IF
-                      Keyword.WHILE
-                      Keyword.ELSE
-                      Keyword.FOR
-                      Keyword.BREAK
-                      Keyword.RETURN ]
+        [ "if"; "while"; "else"; "for"; "break"; "return" ]
+        |> List.zip
+            [ Keyword.IF; Keyword.WHILE; Keyword.ELSE; Keyword.FOR; Keyword.BREAK; Keyword.RETURN ]
         |> List.map (fun (key, str) -> lws str >>% key)
 
-    let signOperation: Parser<char option, _> =
-        opt (pchar '-' <|> pchar '+')
+    let signOperation: Parser<char option, _> = opt (pchar '-' <|> pchar '+')
 
     let integerLiteral =
-        signOperation .>>. many1Chars digit .>> notFollowedBy (pchar '.')
-        <??> "Integer"
+        signOperation .>>. many1Chars digit .>> notFollowedBy (pchar '.') <??> "Integer"
         |>> (parseInteger >> Result.map Literal.IntNumber)
 
     let floatLiteral =
-        pipe3 signOperation (many1Chars digit .>> pchar '.') (manyChars digit) (fun sign d f -> sign, d + "." + f)
+        pipe3 signOperation (many1Chars digit .>> pchar '.') (manyChars digit) (fun sign d f ->
+            sign, d + "." + f)
         <??> "Float"
         |>> (parseFloat >> Result.map Literal.FloatNumber)
 
@@ -131,7 +115,7 @@ module Lexem =
         | BinaryOperator of BinaryOp
         | Identifier of string
 
-        static member bind (value: obj) =
+        static member bind(value: obj) =
             match value with
             | :? AST.Literal as v -> LexemParseResult.Literal v
             | :? AST.Keyword as v -> LexemParseResult.Keyword v
@@ -149,9 +133,7 @@ module Syntax =
     let operatorLexemCombinator = choice operatorLexems
 
     let literalLexemParser: Parser<Literal, _> =
-        choice [ attempt booleanLiteral
-                 attempt integerLiteral
-                 floatLiteral ]
+        choice [ attempt booleanLiteral; attempt integerLiteral; floatLiteral ]
         >>= mapResultToReply "Incorrect literal"
         <??> "Literal"
 
@@ -159,37 +141,25 @@ module Syntax =
         typeLexemParser .>> ws1 .>>. identifierStringParser
         |>> fun (t, i) -> { Name = i; TypeDecl = t }
 
-    let argsParser =
-        sepBy1 argParser (ws >>. skipChar ',' >>. ws)
+    let argsParser = sepBy1 argParser (ws >>. skipChar ',' >>. ws)
 
     let curlyP p = between (skipChar '(') (skipChar ')') p
 
     let funcDeclarationParser =
-        typeLexemParser .>> ws1 .>>.? identifierStringParser .>> ws
-        .>>. curlyP argsParser
-        |>> fun ((t, i), p) ->
-                { Name = i
-                  ReturnType = t
-                  Parameters = p }
+        typeLexemParser .>> ws1 .>>.? identifierStringParser .>> ws .>>. curlyP argsParser
+        |>> fun ((t, i), p) -> { Name = i; ReturnType = t; Parameters = p }
 
-    let expressionStub, expressionParserRef =
-        createParserForwardedToRef ()
+    let expressionStub, expressionParserRef = createParserForwardedToRef ()
 
     let varDeclarationParser: Parser<Variable, string> =
         typeLexemParser .>> ws1 .>>.? identifierStringParser
         |>> fun (t, i) -> { Name = i; TypeDecl = t }
 
     let initializationParser: Parser<Initialization, string> =
-        varDeclarationParser .>> ws .>> skipChar '=' .>> ws
-        .>>. expressionStub
+        varDeclarationParser .>> ws .>> skipChar '=' .>> ws .>>. expressionStub
 
     let returnStm =
-        skipString "return" >>. ws1 >>. expressionStub .>> skipChar ';'
-        |>> Statement.Return
-
-    //    let funcArgument =
-//        (literalLexemParser |>> Argument.Literal)
-//        <|> (identifierStringParser |>> Argument.Identifier)
+        skipString "return" >>. ws1 >>. expressionStub .>> skipChar ';' |>> Statement.Return
 
     let funcCallParser =
         identifierStringParser .>>? ws
@@ -198,49 +168,41 @@ module Syntax =
 
 
     do
-        expressionParserRef
-        := choice [ attempt literalLexemParser |>> Expression.Literal
-                    attempt funcCallParser |>> Expression.Call
-                    identifierStringParser |>> Expression.Identifier ]
+        expressionParserRef.Value <-
+            choice
+                [ attempt literalLexemParser |>> Expression.Literal
+                  attempt funcCallParser |>> Expression.Call
+                  identifierStringParser |>> Expression.Identifier ]
 
-    let expressionParser =
-        expressionParserRef.Value <??> "Expression"
+    let expressionParser = expressionParserRef.Value <??> "Expression"
 
-    let statementStub, statementParserRef =
-        createParserForwardedToRef ()
+    let statementStub, statementParserRef = createParserForwardedToRef ()
 
-    let emptyStatementParser =
-        skipChar ';' >>% Statement.Empty
+    let emptyStatementParser = skipChar ';' >>% Statement.Empty
 
-    let manyStatements =
-        many <| between wslr wslr statementStub
+    let manyStatements = many <| between wslr wslr statementStub
 
     let blockParser: Parser<Block, _> =
         between (skipChar '{') (skipChar '}') (manyStatements <|> (wslr >>% []))
 
-    let functionParser: Parser<Function, _> =
-        funcDeclarationParser .>> wslr .>>. blockParser
+    let functionParser: Parser<Function, _> = funcDeclarationParser .>> wslr .>>. blockParser
 
-    let simpleStatement =
-        expressionParser .>> ws .>> skipChar ';' |>> Statement.Expression
+    let simpleStatement = expressionParser .>> ws .>> skipChar ';' |>> Statement.Expression
 
-    let simpleVar =
-        varDeclarationParser .>> ws .>> skipChar ';'
-        |>> Statement.VarDeclaration
+    let simpleVar = varDeclarationParser .>> ws .>> skipChar ';' |>> Statement.VarDeclaration
 
-    let simpleInit =
-        initializationParser .>> ws .>> skipChar ';'
-        |>> Statement.Initialization
+    let simpleInit = initializationParser .>> ws .>> skipChar ';' |>> Statement.Initialization
 
     do
         statementParserRef
-        := choice [ attempt functionParser |>> Statement.FuncDeclaration
-                    attempt blockParser |>> Statement.Block
-                    attempt returnStm
-                    attempt simpleInit
-                    attempt simpleVar
-                    attempt simpleStatement
-                    emptyStatementParser ]
+        := choice
+            [ attempt functionParser |>> Statement.FuncDeclaration
+              attempt blockParser |>> Statement.Block
+              attempt returnStm
+              attempt simpleInit
+              attempt simpleVar
+              attempt simpleStatement
+              emptyStatementParser ]
 
     let statementParser = statementParserRef.Value
 

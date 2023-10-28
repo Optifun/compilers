@@ -1,22 +1,14 @@
 ﻿module MiniC.Core.Analyzers
 
-open System
 open System.Collections.Generic
 open System.Collections.Immutable
 open FSharpPlus
-open FParsec
-open FSharpPlus
-open FSharpPlus.Control
-open MiniC.Core.Combinators
 open MiniC.Core.AST
 open MiniC.Core.Error
 
 let toImmutable (d: IDictionary<'a, 'c>) : ImmutableDictionary<'a, 'c> = d.ToImmutableDictionary()
 
-let isOk result =
-    match result with
-    | Result.Ok _ -> true
-    | _ -> false
+let isOk = Result.isOk
 
 type Scope =
     | Global of Context
@@ -27,15 +19,11 @@ and CompoundContext = Scope * Context
 and Context =
     { Functions: ImmutableDictionary<Identifier, Function>
       Variables: ImmutableDictionary<Identifier, Variable> }
-    static member create (variables: Variable list) (functions: Function list) : Context =
-        let vars =
-            variables |> Seq.map (fun v -> v.Name, v) |> dict |> toImmutable
 
-        let funcs =
-            functions
-            |> Seq.map (fun (fd, fb) -> fd.Name, (fd, fb))
-            |> dict
-            |> toImmutable
+    static member create (variables: Variable list) (functions: Function list) : Context =
+        let vars = variables |> Seq.map (fun v -> v.Name, v) |> dict |> toImmutable
+
+        let funcs = functions |> Seq.map (fun (fd, fb) -> fd.Name, (fd, fb)) |> dict |> toImmutable
 
         { Variables = vars; Functions = funcs }
 
@@ -47,64 +35,66 @@ module Context =
     let registerFunction context (decl: FunctionDecl, block) =
         { context with Functions = context.Functions.Add <| (decl.Name, (decl, block)) }
 
-    let getFunction context =
-        Result.protect <| fun (id: Identifier) -> context.Functions.[id]
+    let getFunction context = Result.protect <| fun (id: Identifier) -> context.Functions[id]
 
-    let getVariable context =
-        Result.protect <| fun (id: Identifier) -> context.Variables.[id]
+    let getVariable context = Result.protect <| fun (id: Identifier) -> context.Variables[id]
 
     let hasFunction context (id: Identifier) = Seq.contains id context.Functions.Keys
 
     let hasVariable context (id: Identifier) = Seq.contains id context.Variables.Keys
     let hasIdentifier context (id: Identifier) = hasFunction context id || hasVariable context id
 
-    let empty =
-        { Functions = ImmutableDictionary.Empty
-          Variables = ImmutableDictionary.Empty }
+    let empty = { Functions = ImmutableDictionary.Empty; Variables = ImmutableDictionary.Empty }
 
 type Context with
-    member x.registerVariable (var: Variable) = registerVariable x var
-    member x.registerFunction (func: Function) = registerFunction x func
-    member x.getFunction (id: Identifier) = getFunction x id
-    member x.getVariable (id: Identifier) = getFunction x id
-    member x.hasFunction (id: Identifier) = hasFunction x id
-    member x.hasVariable (id: Identifier) = hasVariable x id
-    member x.hasIdentifier (id: Identifier) = hasIdentifier x id
+
+    member x.registerVariable(var: Variable) = registerVariable x var
+    member x.registerFunction(func: Function) = registerFunction x func
+    member x.getFunction(id: Identifier) = getFunction x id
+    member x.getVariable(id: Identifier) = getFunction x id
+    member x.hasFunction(id: Identifier) = hasFunction x id
+    member x.hasVariable(id: Identifier) = hasVariable x id
+    member x.hasIdentifier(id: Identifier) = hasIdentifier x id
 
 
-let rec visitScope (scope: Scope) (visitor: Context -> Identifier -> Result<'elem, 'TErr>) id : Result<'elem, 'TErr> =
+let rec visitScope
+    (scope: Scope)
+    (visitor: Context -> Identifier -> Result<'elem, 'TErr>)
+    id
+    : Result<'elem, 'TErr> =
     scope
     |> function
         | Global context -> visitor context id
-        | Function (parent, current) ->
+        | Function(parent, current) ->
             visitor current id
             |> function
                 | Result.Ok elem -> Result.Ok elem
                 | Result.Error _ -> visitScope parent visitor id
 
 type Scope with
-    member x.getFunction (id: Identifier) = visitScope x getFunction id
 
-    member x.getVariable (id: Identifier) = visitScope x getVariable id
+    member x.getFunction(id: Identifier) = visitScope x getFunction id
 
-    member x.registerVariable (var: Variable) =
+    member x.getVariable(id: Identifier) = visitScope x getVariable id
+
+    member x.registerVariable(var: Variable) =
         x
         |> function
             | Global c -> Global <| c.registerVariable var
-            | Function (p, c) -> Function(p, c.registerVariable var)
+            | Function(p, c) -> Function(p, c.registerVariable var)
 
-    member x.registerFunction (func: Function) =
+    member x.registerFunction(func: Function) =
         x
         |> function
             | Global c -> Global <| c.registerFunction func
-            | Function (p, c) -> Function(p, c.registerFunction func)
+            | Function(p, c) -> Function(p, c.registerFunction func)
 
 
 let funcRetType (func: Function) =
     let decl, body = func
     decl.ReturnType
 
-let errorSingle (err: 'a) : Result<'b, 'a list> = err |> List.singleton |> Result.Error
+let singleError (err: 'a) : Result<'b, 'a list> = err |> List.singleton |> Result.Error
 
 let getError =
     function
@@ -114,10 +104,13 @@ let getError =
 let liftError<'a, 'err> : Result<'a, 'err> -> Result<'a, 'err list> =
     Result.mapError (fun err -> [ err ])
 
-let liftAnalysisError (result: Result<'T, 'a>) (lift: 'T -> Statement) : Result<Statement, 'a list> =
+let liftAnalysisError
+    (result: Result<'T, 'a>)
+    (lift: 'T -> Statement)
+    : Result<Statement, 'a list> =
     match result with
     | Result.Ok e -> Result.Ok <| lift e
-    | Result.Error err -> errorSingle err
+    | Result.Error err -> singleError err
 
 let liftAnalysis (result: Result<'T, 'a>) (lift: 'T -> Statement) =
     match result with
@@ -140,8 +133,7 @@ let matchTypeWith typeT (expr: Expression) (context: Scope) : Result<Expression,
             if (varType = funcRetType f) then
                 Result.Ok expr
             else
-                Result.Error <| ExpectedType(typeT, expr)
-        )
+                Result.Error <| ExpectedType(typeT, expr))
 
     | varType, Identifier id when
         context.getVariable id
@@ -155,12 +147,15 @@ let matchVariableType var expr context =
     matchTypeWith var.TypeDecl expr context
     |> function
         | Result.Ok _ -> Result.Ok var
-        | Result.Error (ExpectedType (typeT, expr)) -> Result.Error <| TypeMismatch(var, expr)
+        | Result.Error(ExpectedType(typeT, expr)) -> Result.Error <| TypeMismatch(var, expr)
         | Result.Error err -> Result.Error err
 
 let rec expressionAnalyzer (node: Expression) (context: Scope) : Result<Expression, SemanticError> =
 
-    let funcCallAnalyzer (node: FunctionCall) (context: Scope) : Scope * Result<FunctionCall, SemanticError> =
+    let funcCallAnalyzer
+        (node: FunctionCall)
+        (context: Scope)
+        : Scope * Result<FunctionCall, SemanticError> =
 
         let checkParamTypes (param: Variable, arg: Expression) =
             let result =
@@ -186,11 +181,9 @@ let rec expressionAnalyzer (node: Expression) (context: Scope) : Result<Expressi
         let response =
             checkFunction node.FuncName
             |> Result.mapError (fun _ -> UnknownFunctionCall(node.FuncName))
-            |> Result.bind (
-                function
+            |> Result.bind (function
                 | _, succeed when succeed -> Result.Ok node
-                | (f, _), _ -> Result.Error <| FunctionCallWrongParameters(f, node)
-            )
+                | (f, _), _ -> Result.Error <| FunctionCallWrongParameters(f, node))
 
         context, response
 
@@ -217,19 +210,22 @@ let rec expressionAnalyzer (node: Expression) (context: Scope) : Result<Expressi
     visit node
 
 let checkCollision (context: Scope) id =
-    if (isOk <| context.getVariable id || isOk <| context.getFunction id) then
+    if (context.getVariable id |> isOk || context.getFunction id |> isOk) then
         Result.Error <| IdentifierCollision(id, "Identifier already in use")
     else
         Result.Ok id
 
-let analyzeVariable (context: Scope) (var: Variable) : Scope * Result<Variable, SemanticError list> =
-    let nonVoid = var |> nonVoidVariable
+let analyzeVariable
+    (context: Scope)
+    (var: Variable)
+    : Scope * Result<Variable, SemanticError list> =
+    let nonVoid = nonVoidVariable var
     let collision = checkCollision context var.Name
 
     match nonVoid, collision with
     | Result.Ok v, Result.Ok _ -> context.registerVariable v, Result.Ok v
     | Result.Error err, Result.Ok _
-    | Result.Ok _, Result.Error err -> context, errorSingle err
+    | Result.Ok _, Result.Error err -> context, singleError err
     | Result.Error err1, Result.Error err2 -> context, Result.Error [ err1; err2 ]
 
 
@@ -241,20 +237,17 @@ let initializationAnalyzer
 
     let newContext, analysis = analyzeVariable context var
 
-    let matchedType =
-        matchVariableType var value context |> liftError
+    let matchedType = matchVariableType var value context |> liftError
 
     let validExpression = expressionAnalyzer value context
 
-    let _, tempErrors =
-        Result.partition [ analysis
-                           matchedType ]
+    let _, tempErrors = Result.partition [ analysis; matchedType ]
 
-    let errors = tempErrors |> List.collect (fun t -> t)
+    let errors = tempErrors |> List.collect id
 
     match errors, validExpression with
     | [], Result.Ok _ -> newContext, Result.Ok node
-    | [], Result.Error err -> context, Result.Error <| [ err ]
+    | [], Result.Error err -> context, Result.Error [ err ]
     | err, _ -> context, Result.Error err
 
 let analyzeVariableChaining
@@ -271,7 +264,10 @@ let analyzeVariableChaining
         | Result.Ok var -> var, Result.Ok newScope
         | Result.Error err -> var, Result.Error err
 
-let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Scope * Scope, SemanticError list> =
+let funcSignatureAnalyzer
+    (func: Function)
+    (context: Scope)
+    : Result<Scope * Scope, SemanticError list> =
 
     let funcDecl, _ = func
 
@@ -286,12 +282,11 @@ let funcSignatureAnalyzer (func: Function) (context: Scope) : Result<Scope * Sco
         let nestedContext = Function(ctx, Context.empty)
         Seq.mapFold analyzeVariableChaining (Result.Ok nestedContext)
 
-    let registerParameters func : Result<Scope * Scope, SemanticError list> =
+    let registerParameters funcDecl : Result<Scope * Scope, SemanticError list> =
         monad.strict {
             let! globalContext = checkFuncName
 
-            let _, resultContext =
-                registerParams globalContext func.Parameters
+            let _, resultContext = registerParams globalContext funcDecl.Parameters
 
             let! innerContext = resultContext
             return globalContext, innerContext
@@ -307,28 +302,29 @@ let rec statementBlockAnalyzer
     (errors: SemanticError list)
     : Statement list * Scope * SemanticError list =
 
-    let functionDeclAnalyzer (func: Function) (context: Scope) : Scope * Result<Function, SemanticError list> =
+    let functionDeclAnalyzer
+        (func: Function)
+        (context: Scope)
+        : Scope * Result<Function, SemanticError list> =
         let funcDecl, funcBody = func
 
         match funcSignatureAnalyzer func context with
-        | Result.Ok (newContext, innerContext) ->
-            let _, _, errors =
-                statementBlockAnalyzer funcBody innerContext []
+        | Result.Ok(newContext, innerContext) ->
+            let _, _, errors = statementBlockAnalyzer funcBody innerContext []
 
-            if (errors.Length = 0) then
-                newContext, Result.Ok func
-            else
-                context, Result.Error errors
+            if (errors.Length = 0) then newContext, Result.Ok func else context, Result.Error errors
         | Result.Error errors -> context, Result.Error errors
 
-    let statementAnalyzer (statement: Statement) (context: Scope) : Scope * Result<Statement, SemanticError list> =
+    let statementAnalyzer
+        (statement: Statement)
+        (context: Scope)
+        : Scope * Result<Statement, SemanticError list> =
         match statement with
         | Expression e ->
             let result = expressionAnalyzer e context
             context, liftAnalysisError result Expression
         | Initialization i ->
-            let newContext, result =
-                initializationAnalyzer i context
+            let newContext, result = initializationAnalyzer i context
 
             newContext, liftAnalysis result Initialization
         | VarDeclaration var ->
@@ -336,8 +332,7 @@ let rec statementBlockAnalyzer
 
             newContext, liftAnalysis result VarDeclaration
         | FuncDeclaration func ->
-            let newContext, result =
-                functionDeclAnalyzer func context
+            let newContext, result = functionDeclAnalyzer func context
 
             newContext, liftAnalysis result FuncDeclaration
 
@@ -349,19 +344,14 @@ let rec statementBlockAnalyzer
 
         match result with
         | Result.Ok statement ->
-            let _statements, _scope, _errors =
-                statementBlockAnalyzer tail newContext errors
+            let _statements, _scope, _errors = statementBlockAnalyzer tail newContext errors
 
             [ statement ] @ _statements, _scope, _errors
         | Result.Error err -> statementBlockAnalyzer tail newContext (errors @ err)
     | [] -> stList, context, errors
 
 let programAnalyzer (statements: Statement list) =
-
-
     let scope =
-        Global
-            { Variables = ImmutableDictionary.Empty
-              Functions = ImmutableDictionary.Empty }
+        Global { Variables = ImmutableDictionary.Empty; Functions = ImmutableDictionary.Empty }
 
     statementBlockAnalyzer statements scope []

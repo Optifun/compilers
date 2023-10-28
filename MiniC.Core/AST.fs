@@ -13,7 +13,8 @@ type Literal =
     | IntNumber of Value: int
     | FloatNumber of Value: float
     | Boolean of Value: bool
-    member x.GetTypeLiteral () =
+
+    member x.GetTypeLiteral() =
         x
         |> function
             | IntNumber _ -> IntL
@@ -26,27 +27,21 @@ and TypeLiteral =
     | BoolL
     | VoidL
     | ArrayL of TypeLiteral * int option
-    override x.ToString () =
+
+    override x.ToString() =
         match x with
         | IntL -> "int"
         | FloatL -> "float"
         | BoolL -> "bool"
         | VoidL -> "void"
-        | ArrayL (t, n) -> $"{t}[{n}]"
+        | ArrayL(t, n) -> $"{t}[{n}]"
 
 type Identifier = string
 
-and FunctionDecl =
-    { Parameters: Variable list
-      ReturnType: TypeLiteral
-      Name: Identifier }
+and FunctionDecl = { Parameters: Variable list; ReturnType: TypeLiteral; Name: Identifier }
 
 
-and Variable =
-    { TypeDecl: TypeLiteral
-      Name: Identifier
-    //      Scope: Scope
-     }
+and Variable = { TypeDecl: TypeLiteral; Name: Identifier }
 
 type Expression =
     | Assignment of Identifier * Expression
@@ -65,9 +60,7 @@ and Statement =
     | FuncDeclaration of Function
     | ParamDeclaration of Variable
 
-and FunctionCall =
-    { FuncName: Identifier
-      Arguments: Expression list }
+and FunctionCall = { FuncName: Identifier; Arguments: Expression list }
 
 and Initialization = Variable * Expression
 
@@ -90,7 +83,8 @@ and BinaryOp =
     | Multiply
     | Divide
     | Modulus
-    override x.ToString () =
+
+    override x.ToString() =
         match x with
         | Assignment -> "="
         | ConditionalOr -> "||"
@@ -109,18 +103,16 @@ and BinaryOp =
 
     static member GetCases = GetCases<BinaryOp>
 
-let varD (name, typeL) : Variable = { TypeDecl = typeL; Name = name }
+let varD (name, typeL) = { Name = name; TypeDecl = typeL }: Variable
 
 let funcD (name, typeL, pars) : FunctionDecl =
-    { Name = name
-      ReturnType = typeL
-      Parameters = pars }
+    { Name = name; ReturnType = typeL; Parameters = pars }
 
-let funcCall (name, args) : Expression = { FuncName = name; Arguments = args } |> Expression.Call
+let funcCall (name, args) = { FuncName = name; Arguments = args } |> Expression.Call
 
-let intLiteral value : Expression = Literal << IntNumber <| value
-let floatLiteral value : Expression = Literal << FloatNumber <| value
-let boolLiteral value : Expression = Literal << Boolean <| value
+let intLiteral value = value |> IntNumber |> Literal
+let floatLiteral value = value |> FloatNumber |> Literal
+let boolLiteral value = value |> Boolean |> Literal
 
 type Keyword =
     | IF
@@ -130,7 +122,8 @@ type Keyword =
     | BREAK
     | RETURN
     | Delimiter of string
-    override x.ToString () =
+
+    override x.ToString() =
         match x with
         | IF -> "if"
         | WHILE -> "while"
